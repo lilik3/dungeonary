@@ -1,0 +1,87 @@
+// Combat resolver: Scrabble-style spatial combat. A placed word is a line of
+// cells; some already had a letter (a living monster or an inert corpse/word
+// tile), the rest are freshly filled from the player's rack. Any LIVING
+// monster whose cell lies on that line takes 1 damage - no letter-identity
+// matching needed, since the monster's own letter is necessarily part of the
+// word by construction. New tiles stay on the board only if the word killed
+// at least one monster (GDD v0.4 "stays if it killed, else vanishes" rule).
+const Combat = (() => {
+  // placementCells: [{r, c, letter, tokenId}] in order along the line.
+  // tokenId is null/undefined for cells that already had a letter on the board.
+  function resolveWordSubmission(placementCells) {
+    if (!placementCells || placementCells.length < 2) {
+      return { ok: false, reason: 'too-short' };
+    }
+    const newCells = placementCells.filter(p => p.tokenId != null);
+    if (newCells.length === 0) {
+      return { ok: false, reason: 'no-new-letters' };
+    }
+
+    const tokenIds = newCells.map(p => p.tokenId);
+    const tokens = Inventory.tokensForIds(tokenIds);
+    if (tokens.length !== tokenIds.length) {
+      return { ok: false, reason: 'invalid-tokens' };
+    }
+    // every new cell's letter must match the rack token it claims to use
+    const tokenById = new Map(tokens.map(t => [t.id, t]));
+    for (const p of newCells) {
+      const tok = tokenById.get(p.tokenId);
+      if (!tok || tok.letter !== p.letter) return { ok: false, reason: 'token-mismatch' };
+    }
+
+    const word = placementCells.map(p => p.letter).join('');
+    if (!Dictionary.isValidWord(word)) {
+      return { ok: false, reason: 'invalid-word', word };
+    }
+
+    // Traps fire immediately on the new cells, regardless of outcome below.
+    const trapHits = Board.triggerTrapsFor(newCells.map(p => [p.r, p.c]));
+    const trapDamage = trapHits.length * 2;
+
+    // Letter-match-by-position damage: every living monster the line passes through.
+    const seen = new Set();
+    const hit = [];
+    const killed = [];
+    const rewards = [];
+    for (const p of placementCells) {
+      const m = Board.getLivingMonsterAt(p.r, p.c);
+      if (m && !seen.has(m.id)) {
+        seen.add(m.id);
+        m.hp -= 1;
+        hit.push(m);
+        if (m.hp <= 0) {
+          const reward = Board.killMonster(m.id);
+          killed.push(m);
+          if (reward) rewards.push(reward);
+        }
+      }
+    }
+
+    const tilesKept = killed.length > 0;
+    if (tilesKept) {
+      Board.writeLetters(newCells.map(p => ({ r: p.r, c: p.c, letter: p.letter })));
+    }
+
+    Inventory.consumeTokens(tokenIds);
+
+    return {
+      ok: true, word, hit, killed, rewards, trapDamage, trapCells: trapHits,
+      tilesKept, newLetterCount: newCells.length
+    };
+  }
+
+  // Enemy attack phase: every living monster hits the player. A Ward shield
+  // (if active) absorbs damage first.
+  function resolveEnemyAttack(wardAbsorb) {
+    const living = Board.getLivingMonsters();
+    let totalDamage = living.reduce((sum, m) => sum + m.dmg, 0);
+    let absorbed = 0;
+    if (wardAbsorb > 0 && totalDamage > 0) {
+      absorbed = Math.min(wardAbsorb, totalDamage);
+      totalDamage -= absorbed;
+    }
+    return { attackers: living.length, rawDamage: living.reduce((s, m) => s + m.dmg, 0), absorbed, finalDamage: totalDamage };
+  }
+
+  return { resolveWordSubmission, resolveEnemyAttack };
+})();

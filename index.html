@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dungeonary</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- START SCREEN -->
+  <section id="screen-start" class="screen">
+    <div class="start-card">
+      <h1>Dungeonary</h1>
+      <p class="subtitle">Szóalkotó roguelite dungeon crawler</p>
+      <p class="blurb">Gyűjts betűket, rakj ki angol szavakat, és sebezd velük a kazamata szörnyeit.
+        5 szoba, majd egy főellenfél vár rád. Jó szerencsét!</p>
+      <button id="btn-start" class="btn btn-primary btn-big">Új futam indítása</button>
+    </div>
+  </section>
+
+  <!-- MAIN GAME SCREEN -->
+  <section id="screen-game" class="screen hidden">
+
+    <header id="hud">
+      <div class="hud-block">
+        <div class="hud-label">Életerő</div>
+        <div class="bar hp-bar"><div id="hp-fill" class="bar-fill"></div><span id="hp-text" class="bar-text"></span></div>
+      </div>
+      <div class="hud-block">
+        <div class="hud-label">Szint <span id="level-text">1</span></div>
+        <div class="bar xp-bar"><div id="xp-fill" class="bar-fill"></div><span id="xp-text" class="bar-text"></span></div>
+      </div>
+      <div class="hud-block hud-gold">💰 <span id="gold-text">0</span></div>
+      <div class="hud-block hud-room">Szoba <span id="room-text">1</span>/<span id="room-total">6</span></div>
+    </header>
+
+    <div id="log"></div>
+
+    <main id="game-main">
+      <div id="board-wrap">
+        <div id="board"></div>
+      </div>
+
+      <aside id="side-panel">
+        <div id="spell-panel"></div>
+
+        <div id="placement-controls" class="hidden">
+          <p id="placement-hint">Húzz egy betűt a kezedből a táblára.</p>
+          <div id="confirm-options" class="placement-buttons"></div>
+          <div class="placement-buttons">
+            <button id="btn-cancel-placement" class="btn">Mégse</button>
+          </div>
+        </div>
+
+        <div id="letter-picker" class="hidden"></div>
+      </aside>
+    </main>
+
+    <section id="rack-area">
+      <p class="rack-hint">Húzd a betűidet a pályára szó kirakásához.</p>
+      <div id="rack"></div>
+      <div id="action-buttons">
+        <button id="btn-trash" class="btn">Trash (-2 HP)</button>
+        <button id="btn-end-turn" class="btn btn-primary btn-big">Kör vége</button>
+      </div>
+    </section>
+  </section>
+
+  <!-- LEVEL UP MODAL -->
+  <section id="screen-levelup" class="screen modal hidden">
+    <div class="modal-card">
+      <h2>Szintlépés!</h2>
+      <p>Válassz egy fejlesztést:</p>
+      <div id="levelup-options"></div>
+    </div>
+  </section>
+
+  <!-- TRADER MODAL -->
+  <section id="screen-trader" class="screen modal hidden">
+    <div class="modal-card">
+      <h2>Kereskedő</h2>
+      <p>A terem megtisztítva. Fejleszd az inventoryd, mielőtt továbbmész.</p>
+      <p>Aranyad: <span id="trader-gold">0</span> 💰</p>
+      <p>Jelenlegi kapacitás: <span id="trader-capacity">7</span> betűtoken</p>
+      <button id="btn-buy-capacity" class="btn btn-primary">Kapacitás +1</button>
+      <button id="btn-continue" class="btn btn-big">Tovább a következő szobába</button>
+    </div>
+  </section>
+
+  <!-- GAME OVER MODAL -->
+  <section id="screen-gameover" class="screen modal hidden">
+    <div class="modal-card">
+      <h2>Futam vége</h2>
+      <p id="gameover-stats"></p>
+      <button id="btn-restart" class="btn btn-primary btn-big">Új futam</button>
+    </div>
+  </section>
+
+  <!-- VICTORY MODAL -->
+  <section id="screen-victory" class="screen modal hidden">
+    <div class="modal-card">
+      <h2>Győzelem!</h2>
+      <p id="victory-stats"></p>
+      <button id="btn-victory-restart" class="btn btn-primary btn-big">Új futam</button>
+    </div>
+  </section>
+
+  <div id="drag-ghost" class="hidden"></div>
+</div>
+
+<script src="data/words.js"></script>
+<script src="js/dictionary.js"></script>
+<script src="js/letterBag.js"></script>
+<script src="js/inventory.js"></script>
+<script src="js/monsters.js"></script>
+<script src="js/board.js"></script>
+<script src="js/spells.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/run.js"></script>
+<script src="js/turnManager.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
