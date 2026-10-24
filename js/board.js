@@ -52,6 +52,24 @@ const Board = (() => {
     return arr;
   }
 
+  function hasAdjacentMonster(r, c) {
+    return neighbors(r, c).some(([nr, nc]) => grid[nr][nc].monsterId);
+  }
+
+  // Picks (and removes) a cell from freeCells that isn't next to another
+  // monster yet, so spawns always keep at least one empty square between
+  // them - falls back to any free cell if the board is too packed to manage it.
+  function popSpacedMonsterCell(freeCells) {
+    for (let i = 0; i < freeCells.length; i++) {
+      const [r, c] = freeCells[i];
+      if (!hasAdjacentMonster(r, c)) {
+        freeCells.splice(i, 1);
+        return [r, c];
+      }
+    }
+    return freeCells.pop();
+  }
+
   function generateRoom(num) {
     roomNumber = num;
     monsters = new Map();
@@ -69,14 +87,14 @@ const Board = (() => {
 
     if (plan.boss) {
       const boss = Monsters.createBoss();
-      const [br, bc] = freeCells.pop();
+      const [br, bc] = popSpacedMonsterCell(freeCells);
       boss.r = br; boss.c = bc;
       grid[br][bc].monsterId = boss.id;
       monsters.set(boss.id, boss);
       placedMonsters.push(boss);
       for (let i = 0; i < plan.count - 1; i++) {
         const m = Monsters.createMonsterByTier('swarm');
-        const [r, c] = freeCells.pop();
+        const [r, c] = popSpacedMonsterCell(freeCells);
         m.r = r; m.c = c;
         grid[r][c].monsterId = m.id;
         monsters.set(m.id, m);
@@ -85,7 +103,7 @@ const Board = (() => {
     } else {
       for (let i = 0; i < plan.elites; i++) {
         const m = Monsters.createMonsterByTier('elite');
-        const [r, c] = freeCells.pop();
+        const [r, c] = popSpacedMonsterCell(freeCells);
         m.r = r; m.c = c;
         grid[r][c].monsterId = m.id;
         monsters.set(m.id, m);
@@ -96,7 +114,7 @@ const Board = (() => {
         const roll = Math.random();
         const tier = roll < 0.45 ? 'swarm' : (roll < 0.75 ? 'brute' : 'tough');
         const m = Monsters.createMonsterByTier(tier);
-        const [r, c] = freeCells.pop();
+        const [r, c] = popSpacedMonsterCell(freeCells);
         m.r = r; m.c = c;
         grid[r][c].monsterId = m.id;
         monsters.set(m.id, m);
@@ -184,6 +202,31 @@ const Board = (() => {
     return dir === 'H' ? SIZE - c : SIZE - r;
   }
 
+  // What word (if any) `letter` would form at (r,c) along `dir`, treating
+  // (r,c) as already holding it and reading outward through whatever's
+  // already on the board on both sides (monsters, corpses, old tiles).
+  // Used by Blink: a monster you move in next to existing letters must form
+  // a real word, unless the spot is fully isolated. Doesn't mutate the board.
+  function wordCandidateAt(r, c, letter, dir) {
+    let lo = dir === 'H' ? c : r;
+    let hi = lo;
+    const letterAt = (pos) => {
+      const rr = dir === 'H' ? r : pos;
+      const cc = dir === 'H' ? pos : c;
+      if (rr === r && cc === c) return letter;
+      return getCellLetter(rr, cc);
+    };
+    while (lo - 1 >= 0 && letterAt(lo - 1) != null) lo--;
+    while (hi + 1 <= SIZE - 1 && letterAt(hi + 1) != null) hi++;
+    const cells = [];
+    for (let pos = lo; pos <= hi; pos++) {
+      const rr = dir === 'H' ? r : pos;
+      const cc = dir === 'H' ? pos : c;
+      cells.push({ r: rr, c: cc, letter: letterAt(pos) });
+    }
+    return { cells, word: cells.map(x => x.letter).join('') };
+  }
+
   // --- Committing a resolved word ---
 
   // Traps fire the instant a new letter physically lands on them, regardless
@@ -256,7 +299,7 @@ const Board = (() => {
 
   return {
     SIZE, generateRoom, getCell, getCellLetter, getLivingMonsterAt, getMonsters,
-    getLivingMonsters, getMonster, roomCleared, computeLineCells, maxLineLength,
+    getLivingMonsters, getMonster, roomCleared, computeLineCells, maxLineLength, wordCandidateAt,
     triggerTrapsFor, writeLetters, removeWordAt, resetTrapTurnFlags, moveMonster, killMonster,
     cellIsEmpty, getState, inBounds
   };

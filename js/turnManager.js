@@ -86,7 +86,7 @@ const TurnManager = (() => {
     if (!res.ok) return res;
 
     let rewardInfo = null;
-    if (spellId === 'fire') {
+    if (Array.isArray(res.effect.killed)) {
       rewardInfo = { rewards: res.effect.rewards, killed: res.effect.killed };
     }
     const turnOutcome = checkImmediateOutcome(rewardInfo);

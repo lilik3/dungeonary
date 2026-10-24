@@ -568,7 +568,11 @@ const UI = (() => {
 
   function handleSpellResult(res) {
     if (!res.ok) {
-      log(`Nem sikerült a varázslat (${res.reason}).`, 'danger');
+      if (res.reason === 'invalid-word') {
+        log(`Blink: "${res.words.join('", "')}" nem érvényes szó, nem teheted oda. Válassz másik mezőt.`, 'danger');
+      } else {
+        log(`Nem sikerült a varázslat (${res.reason}).`, 'danger');
+      }
       spellTargetState = null;
       renderAll();
       return;
@@ -584,9 +588,17 @@ const UI = (() => {
     if (e.healed !== undefined) log(`Gyógyítás: +${e.healed} HP.`, 'good');
     if (e.shield !== undefined) log(`Ward aktiválva: a következő ellenségtámadásból ${e.shield} sebzést elnyel.`, 'good');
     if (e.letter) log(`Betűidézés: a legközelebbi feltöltéskor ${e.letter} betűt kapsz.`, 'good');
-    if (e.to) log('Blink: az ellenfél áthelyezve egy új mezőre.', 'good');
+    if (e.to && e.words) {
+      log(`Blink: az ellenfél áthelyezve, és "${e.words.join('", "')}" szót alkotott!`, 'good');
+      for (const m of e.hit) {
+        const died = !m.alive;
+        log(`${m.emoji} ${m.name} (${m.letter}) ${died ? 'elpusztult!' : 'megsebződött.'}`, died ? 'good' : null);
+      }
+    } else if (e.to) {
+      log('Blink: az ellenfél áthelyezve egy új mezőre.', 'good');
+    }
     if (e.cleared) log('Cleanse: a kijelölt betű eltávolítva a tábláról.', 'good');
-    if (e.hit) {
+    if (e.hit && !e.to) {
       log(`Fire: ${e.hit.length} ellenfél megsebződött a 3x3-as területen.`, 'good');
       for (const m of e.killed) log(`${m.name} (${m.letter}) elpusztult! +${m.xp} XP`, 'good');
     }

@@ -139,11 +139,34 @@ const Spells = (() => {
     let effect = {};
     switch (id) {
       case 'blink': {
+        // Per feedback: the destination can sit right up against existing
+        // letters (monsters or old tiles) - but then it MUST form a real
+        // word, and every monster that word touches (including the one you
+        // just moved) takes damage, same as a normal word play. A fully
+        // isolated destination (no neighbors at all) just relocates the
+        // monster for free, as before.
         const { monsterId, r, c } = args;
         const m = Board.getMonster(monsterId);
         if (!m || !m.alive) return { ok: false, reason: 'invalid-target' };
-        if (!Board.moveMonster(monsterId, r, c)) return { ok: false, reason: 'invalid-cell' };
-        effect = { monster: m, to: [r, c] };
+        if (!Board.inBounds(r, c) || !Board.cellIsEmpty(r, c)) return { ok: false, reason: 'invalid-cell' };
+
+        const candidates = ['H', 'V'].map(dir => Board.wordCandidateAt(r, c, m.letter, dir));
+        const extended = candidates.filter(cand => cand.cells.length >= 2);
+        const isolated = extended.length === 0;
+
+        if (isolated) {
+          Board.moveMonster(monsterId, r, c);
+          effect = { monster: m, to: [r, c] };
+        } else {
+          const validWords = extended.filter(cand => Dictionary.isValidWord(cand.word));
+          if (validWords.length === 0) {
+            return { ok: false, reason: 'invalid-word', words: extended.map(cand => cand.word) };
+          }
+          Board.moveMonster(monsterId, r, c);
+          const touchedCells = validWords.flatMap(cand => cand.cells);
+          const combatResult = Combat.resolveMonstersInCells(touchedCells);
+          effect = { monster: m, to: [r, c], words: validWords.map(cand => cand.word), ...combatResult };
+        }
         break;
       }
       case 'heal': {

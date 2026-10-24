@@ -6,6 +6,29 @@
 // word by construction. New tiles stay on the board only if the word killed
 // at least one monster (GDD v0.4 "stays if it killed, else vanishes" rule).
 const Combat = (() => {
+  // Deals 1 damage to every distinct living monster whose cell appears in
+  // `cells` ([{r,c}, ...]), handling kills and their linked rewards.
+  function resolveMonstersInCells(cells) {
+    const seen = new Set();
+    const hit = [];
+    const killed = [];
+    const rewards = [];
+    for (const { r, c } of cells) {
+      const m = Board.getLivingMonsterAt(r, c);
+      if (m && !seen.has(m.id)) {
+        seen.add(m.id);
+        m.hp -= 1;
+        hit.push(m);
+        if (m.hp <= 0) {
+          const reward = Board.killMonster(m.id);
+          killed.push(m);
+          if (reward) rewards.push(reward);
+        }
+      }
+    }
+    return { hit, killed, rewards };
+  }
+
   // placementCells: [{r, c, letter, tokenId}] in order along the line.
   // tokenId is null/undefined for cells that already had a letter on the board.
   function resolveWordSubmission(placementCells) {
@@ -39,23 +62,7 @@ const Combat = (() => {
     const trapDamage = trapHits.length * 2;
 
     // Letter-match-by-position damage: every living monster the line passes through.
-    const seen = new Set();
-    const hit = [];
-    const killed = [];
-    const rewards = [];
-    for (const p of placementCells) {
-      const m = Board.getLivingMonsterAt(p.r, p.c);
-      if (m && !seen.has(m.id)) {
-        seen.add(m.id);
-        m.hp -= 1;
-        hit.push(m);
-        if (m.hp <= 0) {
-          const reward = Board.killMonster(m.id);
-          killed.push(m);
-          if (reward) rewards.push(reward);
-        }
-      }
-    }
+    const { hit, killed, rewards } = resolveMonstersInCells(placementCells);
 
     const tilesKept = killed.length > 0;
     if (tilesKept) {
@@ -83,5 +90,5 @@ const Combat = (() => {
     return { attackers: living.length, rawDamage: living.reduce((s, m) => s + m.dmg, 0), absorbed, finalDamage: totalDamage };
   }
 
-  return { resolveWordSubmission, resolveEnemyAttack };
+  return { resolveMonstersInCells, resolveWordSubmission, resolveEnemyAttack };
 })();
