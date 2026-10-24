@@ -52,13 +52,28 @@ const Board = (() => {
     return arr;
   }
 
+  // All 8 surrounding cells (orthogonal + diagonal) - spawn spacing must hold
+  // on every side, not just up/down/left/right.
+  function neighbors8(r, c) {
+    const out = [];
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const rr = r + dr, cc = c + dc;
+        if (inBounds(rr, cc)) out.push([rr, cc]);
+      }
+    }
+    return out;
+  }
+
   function hasAdjacentMonster(r, c) {
-    return neighbors(r, c).some(([nr, nc]) => grid[nr][nc].monsterId);
+    return neighbors8(r, c).some(([nr, nc]) => grid[nr][nc].monsterId);
   }
 
   // Picks (and removes) a cell from freeCells that isn't next to another
-  // monster yet, so spawns always keep at least one empty square between
-  // them - falls back to any free cell if the board is too packed to manage it.
+  // monster yet (including diagonally), so spawns always keep a full ring of
+  // empty space around them - falls back to any free cell if the board is
+  // too packed to manage it.
   function popSpacedMonsterCell(freeCells) {
     for (let i = 0; i < freeCells.length; i++) {
       const [r, c] = freeCells[i];
