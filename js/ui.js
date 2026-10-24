@@ -671,10 +671,10 @@ const UI = (() => {
       const died = !m.alive;
       log(`${m.emoji} ${m.name} (${m.letter}) ${died ? 'elpusztult!' : `sebződött (${m.hp}/${m.maxHp} HP maradt)`}`, died ? 'good' : null);
     }
-    if (res.killed.length > 0) {
-      const totalXp = res.killed.reduce((s, m) => s + m.xp, 0);
-      const totalGold = res.killed.reduce((s, m) => s + m.gold, 0);
-      log(`+${totalXp} XP, +${totalGold} arany.`, 'good');
+    const applied = res.turnOutcome && res.turnOutcome.rewardsApplied;
+    if (applied && (applied.xpGained > 0 || applied.goldGained > 0)) {
+      const bonusNote = applied.bonusXp > 0 ? ` (ebből +${applied.bonusXp} XP a szó hosszáért)` : '';
+      log(`+${applied.xpGained} XP, +${applied.goldGained} arany.${bonusNote}`, 'good');
     }
     if (res.rewards.length > 0) {
       for (const r of res.rewards) {

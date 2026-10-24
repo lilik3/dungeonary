@@ -38,7 +38,7 @@ const TurnManager = (() => {
     const outcome = { cleared: false, levelUps: [], gameOver: false, victory: false };
 
     if (rewardInfo) {
-      const applied = Run.applyKillRewards(rewardInfo.rewards, rewardInfo.killed);
+      const applied = Run.applyKillRewards(rewardInfo.rewards, rewardInfo.killed, rewardInfo.bonusXp || 0);
       outcome.rewardsApplied = applied;
       outcome.levelUps = applied.levelUps;
     }
@@ -59,6 +59,13 @@ const TurnManager = (() => {
     return outcome;
   }
 
+  // Every valid word earns straight XP for its length alone (per feedback -
+  // a longer word is worth more, and you don't need to land on a monster at
+  // all to make a word worth playing) - on top of whatever kill XP it earns.
+  function wordLengthXp(word) {
+    return Math.max(0, word.length - 1);
+  }
+
   // placementCells: [{r, c, letter, tokenId}] - see Combat.resolveWordSubmission.
   function submitWord(placementCells) {
     if (phase !== 'playing') return { ok: false, reason: 'wrong-phase' };
@@ -70,7 +77,8 @@ const TurnManager = (() => {
       state.hp = Math.max(0, state.hp - res.trapDamage);
     }
 
-    const turnOutcome = checkImmediateOutcome({ rewards: res.rewards, killed: res.killed });
+    const bonusXp = wordLengthXp(res.word);
+    const turnOutcome = checkImmediateOutcome({ rewards: res.rewards, killed: res.killed, bonusXp });
     return { ...res, turnOutcome };
   }
 

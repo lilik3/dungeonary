@@ -62,10 +62,13 @@ const Run = (() => {
     return levelUps;
   }
 
-  function applyKillRewards(rewardList, monsterList) {
+  // bonusXp: a straight XP award independent of any kill (per feedback -
+  // longer words are worth more XP, and a word doesn't need to kill anything
+  // to be worth playing).
+  function applyKillRewards(rewardList, monsterList, bonusXp = 0) {
     let goldGained = 0;
     let healGained = 0;
-    let xpGained = 0;
+    let xpGained = bonusXp;
     for (const m of monsterList) {
       xpGained += m.xp;
       goldGained += m.gold + state.goldBonusPerKill;
@@ -77,7 +80,7 @@ const Run = (() => {
     state.gold += goldGained;
     state.hp = Math.min(state.maxHp, state.hp + healGained);
     const levelUps = xpGained > 0 ? addXp(xpGained) : [];
-    return { goldGained, healGained, xpGained, levelUps };
+    return { goldGained, healGained, xpGained, bonusXp, levelUps };
   }
 
   function buyCapacityUpgrade() {
