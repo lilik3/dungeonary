@@ -172,16 +172,38 @@ body {
   overflow: hidden;
 }
 .cell .hp-mini-fill { height: 100%; background: #e74c3c; }
+/* Traps and reward fields are the only thing in an empty floor cell, so
+   they get to be big and obvious (per feedback - these were too small
+   to notice at a glance before). */
+.cell.trap {
+  background: linear-gradient(145deg, #5a2320, #341312);
+  box-shadow: 0 0 0 2px #ff5a3c inset;
+}
 .cell.trap::after {
   content: '⚠';
-  position: absolute;
-  top: 1px;
-  right: 2px;
-  font-size: 11px;
-  color: #ff5a5a;
+  font-size: 28px;
+  color: #ff6b4a;
+  text-shadow: 0 0 8px rgba(255, 90, 60, 0.9);
 }
-.cell.reward-gold::before { content: '💰'; position: absolute; opacity: 0.85; font-size: 14px; }
-.cell.reward-heal::before { content: '❤'; position: absolute; opacity: 0.85; color: #ff6b6b; font-size: 14px; }
+.cell.reward-gold {
+  background: linear-gradient(145deg, #5a4a20, #342c12);
+  box-shadow: 0 0 0 2px #e8b84b inset;
+}
+.cell.reward-gold::before {
+  content: '💰';
+  font-size: 30px;
+  filter: drop-shadow(0 0 6px rgba(232, 184, 75, 0.8));
+}
+.cell.reward-heal {
+  background: linear-gradient(145deg, #5a2335, #341320);
+  box-shadow: 0 0 0 2px #ff6b6b inset;
+}
+.cell.reward-heal::before {
+  content: '❤';
+  font-size: 30px;
+  color: #ff6b6b;
+  text-shadow: 0 0 8px rgba(255, 107, 107, 0.9);
+}
 .cell.placed-tile { background: var(--tile-bg); color: var(--tile-text); font-weight: 800; font-size: 26px; }
 .cell.pending-tile {
   background: var(--tile-blue);

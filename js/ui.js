@@ -588,14 +588,19 @@ const UI = (() => {
     if (e.healed !== undefined) log(`Gyógyítás: +${e.healed} HP.`, 'good');
     if (e.shield !== undefined) log(`Ward aktiválva: a következő ellenségtámadásból ${e.shield} sebzést elnyel.`, 'good');
     if (e.letter) log(`Betűidézés: a legközelebbi feltöltéskor ${e.letter} betűt kapsz.`, 'good');
-    if (e.to && e.words) {
-      log(`Blink: az ellenfél áthelyezve, és "${e.words.join('", "')}" szót alkotott!`, 'good');
+    if (e.to) {
+      if (e.words) {
+        log(`Blink: az ellenfél áthelyezve, és "${e.words.join('", "')}" szót alkotott!`, 'good');
+      } else {
+        log('Blink: az ellenfél áthelyezve egy új mezőre.', 'good');
+      }
+      if (e.trapDamage > 0) {
+        log(`Csapdára léptetted! -${e.trapDamage} HP az ellenfélnek.`, 'good');
+      }
       for (const m of e.hit) {
         const died = !m.alive;
         log(`${m.emoji} ${m.name} (${m.letter}) ${died ? 'elpusztult!' : 'megsebződött.'}`, died ? 'good' : null);
       }
-    } else if (e.to) {
-      log('Blink: az ellenfél áthelyezve egy új mezőre.', 'good');
     }
     if (e.cleared) log('Cleanse: a kijelölt betű eltávolítva a tábláról.', 'good');
     if (e.hit && !e.to) {

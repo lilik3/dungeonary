@@ -144,7 +144,9 @@ const Spells = (() => {
         // word, and every monster that word touches (including the one you
         // just moved) takes damage, same as a normal word play. A fully
         // isolated destination (no neighbors at all) just relocates the
-        // monster for free, as before.
+        // monster for free. Either way, landing on a trap hurts the moved
+        // monster too (shoving an enemy into a hazard), independent of
+        // whether a word formed.
         const { monsterId, r, c } = args;
         const m = Board.getMonster(monsterId);
         if (!m || !m.alive) return { ok: false, reason: 'invalid-target' };
@@ -153,20 +155,36 @@ const Spells = (() => {
         const candidates = ['H', 'V'].map(dir => Board.wordCandidateAt(r, c, m.letter, dir));
         const extended = candidates.filter(cand => cand.cells.length >= 2);
         const isolated = extended.length === 0;
-
-        if (isolated) {
-          Board.moveMonster(monsterId, r, c);
-          effect = { monster: m, to: [r, c] };
-        } else {
+        let words;
+        if (!isolated) {
           const validWords = extended.filter(cand => Dictionary.isValidWord(cand.word));
           if (validWords.length === 0) {
             return { ok: false, reason: 'invalid-word', words: extended.map(cand => cand.word) };
           }
-          Board.moveMonster(monsterId, r, c);
-          const touchedCells = validWords.flatMap(cand => cand.cells);
-          const combatResult = Combat.resolveMonstersInCells(touchedCells);
-          effect = { monster: m, to: [r, c], words: validWords.map(cand => cand.word), ...combatResult };
+          words = validWords.map(cand => cand.word);
         }
+
+        Board.moveMonster(monsterId, r, c);
+
+        let hit = [], killed = [], rewards = [];
+        if (!isolated) {
+          const extendedValid = extended.filter(cand => Dictionary.isValidWord(cand.word));
+          const touchedCells = extendedValid.flatMap(cand => cand.cells);
+          ({ hit, killed, rewards } = Combat.resolveMonstersInCells(touchedCells));
+        }
+
+        const trapDamage = Board.triggerTrapsFor([[r, c]]).length * 2;
+        if (trapDamage > 0 && m.alive) {
+          m.hp -= trapDamage;
+          if (!hit.includes(m)) hit.push(m);
+          if (m.hp <= 0) {
+            const reward = Board.killMonster(m.id);
+            killed.push(m);
+            if (reward) rewards.push(reward);
+          }
+        }
+
+        effect = { monster: m, to: [r, c], words, hit, killed, rewards, trapDamage };
         break;
       }
       case 'heal': {
