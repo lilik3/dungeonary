@@ -5,12 +5,15 @@ const LetterBag = (() => {
   // as rare as the rarest real letters, that can stand in for any letter.
   const JOKER_LETTER = '*';
 
-  // Standard Scrabble-like English letter frequency weights, plus the Joker
-  // at the same rarity as the rarest real letters.
+  // Actual English-text letter frequency (per feedback - the old Scrabble
+  // tile counts made Z/X/Q/J far too common relative to how rare they really
+  // are in English; this is the standard corpus-frequency table, scaled
+  // x10 and rounded). The Joker sits at the same rarity as the rarest real
+  // letters (Q/Z).
   const WEIGHTS = {
-    E: 12, A: 9, I: 9, O: 8, N: 6, R: 6, T: 6, L: 4, S: 4, U: 4, D: 4,
-    G: 3, B: 2, C: 2, M: 2, P: 2, F: 2, H: 2, V: 2, W: 2, Y: 2,
-    K: 1, J: 1, X: 1, Q: 1, Z: 1, [JOKER_LETTER]: 1
+    E: 127, T: 91, A: 82, O: 75, I: 70, N: 67, S: 63, H: 61, R: 60,
+    D: 43, L: 40, C: 28, U: 28, M: 24, W: 24, F: 22, G: 20, Y: 20,
+    P: 19, B: 15, V: 10, K: 8, J: 2, X: 2, Q: 1, Z: 1, [JOKER_LETTER]: 1
   };
 
   const LETTERS = Object.keys(WEIGHTS);
