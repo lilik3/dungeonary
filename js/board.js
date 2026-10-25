@@ -213,13 +213,16 @@ const Board = (() => {
   // already on the board on both sides (monsters, corpses, old tiles).
   // Used by Blink: a monster you move in next to existing letters must form
   // a real word, unless the spot is fully isolated. Doesn't mutate the board.
-  function wordCandidateAt(r, c, letter, dir) {
+  // `ignore` (optional {r,c}) is read as empty - used so a monster blinking
+  // next to its own current cell doesn't see its own old letter as a neighbor.
+  function wordCandidateAt(r, c, letter, dir, ignore) {
     let lo = dir === 'H' ? c : r;
     let hi = lo;
     const letterAt = (pos) => {
       const rr = dir === 'H' ? r : pos;
       const cc = dir === 'H' ? pos : c;
       if (rr === r && cc === c) return letter;
+      if (ignore && rr === ignore.r && cc === ignore.c) return null;
       return getCellLetter(rr, cc);
     };
     while (lo - 1 >= 0 && letterAt(lo - 1) != null) lo--;

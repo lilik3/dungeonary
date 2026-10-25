@@ -210,6 +210,10 @@ const UI = (() => {
             div.addEventListener('mouseenter', () => showAoePreview(spellTargetState.spellId, r, c));
             div.addEventListener('mouseleave', clearAoePreview);
           }
+          if (def.target === 'monster-then-cell' && spellTargetState.stage === 'cell') {
+            div.addEventListener('mouseenter', () => showBlinkPreview(spellTargetState.monsterId, r, c));
+            div.addEventListener('mouseleave', clearBlinkPreview);
+          }
         }
 
         div.addEventListener('click', () => handleCellClick(r, c));
@@ -246,6 +250,40 @@ const UI = (() => {
 
   function clearAoePreview() {
     document.querySelectorAll('.cell.aoe-preview').forEach(el => el.classList.remove('aoe-preview'));
+  }
+
+  // Dry-run of Blink's own placement check (mirrors Spells.cast's 'blink'
+  // case) so hovering a destination can show whether it would actually be
+  // allowed, instead of making the player guess. Never mutates the board.
+  function computeBlinkPreview(monsterId, r, c) {
+    const m = Board.getMonster(monsterId);
+    if (!m || !m.alive || !Board.inBounds(r, c) || !Board.cellIsEmpty(r, c)) {
+      return { valid: false, cells: [[r, c]] };
+    }
+    const origin = { r: m.r, c: m.c };
+    const candidates = ['H', 'V'].map(dir => Board.wordCandidateAt(r, c, m.letter, dir, origin));
+    const extended = candidates.filter(cand => cand.cells.length >= 2);
+    if (extended.length === 0) return { valid: true, cells: [[r, c]] };
+    const validWords = extended.filter(cand => Dictionary.isValidWord(cand.word));
+    if (validWords.length === 0) {
+      return { valid: false, cells: extended.flatMap(cand => cand.cells.map(x => [x.r, x.c])) };
+    }
+    return { valid: true, cells: validWords.flatMap(cand => cand.cells.map(x => [x.r, x.c])) };
+  }
+
+  function showBlinkPreview(monsterId, r, c) {
+    clearBlinkPreview();
+    const { valid, cells } = computeBlinkPreview(monsterId, r, c);
+    const cls = valid ? 'blink-preview-valid' : 'blink-preview-invalid';
+    for (const [rr, cc] of cells) {
+      const el = document.querySelector(`.cell[data-r="${rr}"][data-c="${cc}"]`);
+      if (el) el.classList.add(cls);
+    }
+  }
+
+  function clearBlinkPreview() {
+    document.querySelectorAll('.cell.blink-preview-valid, .cell.blink-preview-invalid')
+      .forEach(el => el.classList.remove('blink-preview-valid', 'blink-preview-invalid'));
   }
 
   // Keeps the player's own drag-to-reorder sequence in sync with whatever
@@ -593,7 +631,7 @@ const UI = (() => {
         if (!m) { log('Válassz egy élő ellenfelet.', 'danger'); return; }
         spellTargetState.monsterId = m.id;
         spellTargetState.stage = 'cell';
-        log('Most válassz egy üres mezőt, ahova a Blink áthelyezi.');
+        log('Most válassz egy üres mezőt, ahova a Blink áthelyezi (vidd az egeret fölé, hogy lásd, hova lehet).');
         renderBoard();
         return;
       }

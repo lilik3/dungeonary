@@ -166,7 +166,11 @@ const Spells = (() => {
         if (!m || !m.alive) return { ok: false, reason: 'invalid-target' };
         if (!Board.inBounds(r, c) || !Board.cellIsEmpty(r, c)) return { ok: false, reason: 'invalid-cell' };
 
-        const candidates = ['H', 'V'].map(dir => Board.wordCandidateAt(r, c, m.letter, dir));
+        // Ignore the monster's own current cell while scanning for neighbor
+        // letters - it's vacating that spot as part of this very move, so it
+        // must not count as a letter still sitting there (per feedback bug).
+        const origin = { r: m.r, c: m.c };
+        const candidates = ['H', 'V'].map(dir => Board.wordCandidateAt(r, c, m.letter, dir, origin));
         const extended = candidates.filter(cand => cand.cells.length >= 2);
         const isolated = extended.length === 0;
         let words;
