@@ -75,7 +75,8 @@ body {
 .hp-bar .bar-fill { background: linear-gradient(90deg, #c0392b, #e74c3c); }
 .xp-bar .bar-fill { background: linear-gradient(90deg, #2f7dd1, #5aa6f0); }
 .bar-text { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; text-shadow: 0 1px 1px #000; }
-.hud-gold, .hud-room { font-size: 18px; font-weight: bold; color: var(--accent-gold); justify-content: center; }
+.hud-gold, .hud-room { flex-direction: row; align-items: center; min-width: 0; font-size: 18px; font-weight: bold; color: var(--accent-gold); justify-content: center; }
+.hud-room { gap: 4px; }
 
 .hud-godmode {
   flex-direction: row;
