@@ -7,9 +7,22 @@
 const TurnManager = (() => {
   let phase = 'playing'; // playing -> (room-clear | game-over), or stays playing after End Turn
   const TRASH_HP_COST = 2;
+  let godMode = false; // TEMPORARY test toggle: ignores all player HP loss
 
   function getPhase() {
     return phase;
+  }
+
+  function isGodMode() {
+    return godMode;
+  }
+
+  function setGodMode(on) {
+    godMode = !!on;
+    if (godMode) {
+      const state = Run.getState();
+      if (state) state.hp = state.maxHp;
+    }
   }
 
   function startRun() {
@@ -25,7 +38,7 @@ const TurnManager = (() => {
     const tokens = Inventory.getTokens();
     if (tokens.length === 0) return { ok: false, reason: 'empty' };
     const state = Run.getState();
-    state.hp = Math.max(0, state.hp - TRASH_HP_COST);
+    if (!godMode) state.hp = Math.max(0, state.hp - TRASH_HP_COST);
     Inventory.discard(tokens.map(t => t.id));
     if (state.hp <= 0) {
       phase = 'game-over';
@@ -73,7 +86,7 @@ const TurnManager = (() => {
     if (!res.ok) return res;
 
     const state = Run.getState();
-    if (res.trapDamage > 0) {
+    if (res.trapDamage > 0 && !godMode) {
       state.hp = Math.max(0, state.hp - res.trapDamage);
     }
 
@@ -107,7 +120,7 @@ const TurnManager = (() => {
     const state = Run.getState();
     const atk = Combat.resolveEnemyAttack(state.wardShield);
     state.wardShield = 0;
-    state.hp -= atk.finalDamage;
+    if (!godMode) state.hp -= atk.finalDamage;
 
     if (state.hp <= 0) {
       state.hp = 0;
@@ -136,6 +149,6 @@ const TurnManager = (() => {
 
   return {
     getPhase, startRun, trashAll, submitWord, feedSpellLetter, castSpell,
-    endTurn, confirmLevelUp, continueFromTrader
+    endTurn, confirmLevelUp, continueFromTrader, isGodMode, setGodMode
   };
 })();

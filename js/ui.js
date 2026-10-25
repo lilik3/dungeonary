@@ -611,6 +611,12 @@ const UI = (() => {
     $('#btn-restart').addEventListener('click', () => startNewRun());
     $('#btn-victory-restart').addEventListener('click', () => startNewRun());
 
+    $('#chk-god-mode').addEventListener('change', (e) => {
+      TurnManager.setGodMode(e.target.checked);
+      log(e.target.checked ? 'TESZT: Végtelen HP bekapcsolva.' : 'TESZT: Végtelen HP kikapcsolva.', 'important');
+      renderAll();
+    });
+
     $('#btn-trash').addEventListener('click', () => {
       const res = TurnManager.trashAll();
       if (!res.ok) {
