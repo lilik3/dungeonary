@@ -25,7 +25,18 @@ const TurnManager = (() => {
     }
   }
 
+  // TEMPORARY (debug Back/Forward): full state in/out for snapshotting.
+  function exportState() {
+    return { phase, godMode };
+  }
+
+  function importState(data) {
+    phase = data.phase;
+    godMode = data.godMode;
+  }
+
   function startRun() {
+    if (Run.getState()) History.capture();
     Run.createNewRun();
     phase = 'playing';
   }
@@ -37,6 +48,7 @@ const TurnManager = (() => {
     if (phase !== 'playing') return { ok: false, reason: 'wrong-phase' };
     const tokens = Inventory.getTokens();
     if (tokens.length === 0) return { ok: false, reason: 'empty' };
+    History.capture();
     const state = Run.getState();
     if (!godMode) state.hp = Math.max(0, state.hp - TRASH_HP_COST);
     Inventory.discard(tokens.map(t => t.id));
@@ -82,6 +94,7 @@ const TurnManager = (() => {
   // placementCells: [{r, c, letter, tokenId}] - see Combat.resolveWordSubmission.
   function submitWord(placementCells) {
     if (phase !== 'playing') return { ok: false, reason: 'wrong-phase' };
+    History.capture();
     const res = Combat.resolveWordSubmission(placementCells);
     if (!res.ok) return res;
 
@@ -97,11 +110,13 @@ const TurnManager = (() => {
 
   function feedSpellLetter(spellId, tokenId) {
     if (phase !== 'playing') return { ok: false, reason: 'wrong-phase' };
+    History.capture();
     return Spells.feedLetter(spellId, Run.getState(), tokenId);
   }
 
   function castSpell(spellId, args) {
     if (phase !== 'playing') return { ok: false, reason: 'wrong-phase' };
+    History.capture();
     const state = Run.getState();
     const res = Spells.cast(spellId, state, args || {});
     if (!res.ok) return res;
@@ -117,6 +132,7 @@ const TurnManager = (() => {
   // Explicit end of turn: surviving monsters attack, then the rack refills.
   function endTurn() {
     if (phase !== 'playing') return { ok: false, reason: 'wrong-phase' };
+    History.capture();
     const state = Run.getState();
     const atk = Combat.resolveEnemyAttack(state.wardShield);
     state.wardShield = 0;
@@ -137,11 +153,13 @@ const TurnManager = (() => {
   function confirmLevelUp(choiceIndex, options) {
     const choice = options[choiceIndex];
     if (!choice) return false;
+    History.capture();
     choice.apply();
     return true;
   }
 
   function continueFromTrader() {
+    History.capture();
     const more = Run.advanceRoom();
     phase = 'playing';
     return more;
@@ -149,6 +167,7 @@ const TurnManager = (() => {
 
   return {
     getPhase, startRun, trashAll, submitWord, feedSpellLetter, castSpell,
-    endTurn, confirmLevelUp, continueFromTrader, isGodMode, setGodMode
+    endTurn, confirmLevelUp, continueFromTrader, isGodMode, setGodMode,
+    exportState, importState
   };
 })();

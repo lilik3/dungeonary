@@ -159,9 +159,18 @@ const Run = (() => {
     return arr;
   }
 
+  // TEMPORARY (debug Back/Forward): full state in/out for snapshotting.
+  function exportState() {
+    return state;
+  }
+
+  function importState(data) {
+    state = data;
+  }
+
   return {
     TOTAL_ROOMS, createNewRun, getState, addGold, addXp, applyKillRewards,
     isBossRoom, isFinalRoom, advanceRoom, xpThreshold, buildPerkOptions,
-    buyCapacityUpgrade, refillRack
+    buyCapacityUpgrade, refillRack, exportState, importState
   };
 })();

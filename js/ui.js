@@ -298,6 +298,8 @@ const UI = (() => {
     $('#btn-end-turn').disabled = phase !== 'playing' || pendingDrops.length > 0 || !!spellTargetState;
     $('#btn-trash').classList.toggle('hidden', phase !== 'playing');
     $('#btn-trash').disabled = Inventory.getTokens().length === 0 || (s && s.hp <= 2);
+    $('#btn-history-back').disabled = !History.canGoBack();
+    $('#btn-history-forward').disabled = !History.canGoForward();
   }
 
   function renderPlacementControls() {
@@ -622,6 +624,20 @@ const UI = (() => {
       renderAll();
     });
 
+    $('#btn-history-back').addEventListener('click', () => {
+      if (History.back()) {
+        log('⏪ TESZT: egy lépés vissza.', 'important');
+        syncScreensToState();
+      }
+    });
+
+    $('#btn-history-forward').addEventListener('click', () => {
+      if (History.forward()) {
+        log('⏩ TESZT: egy lépés előre.', 'important');
+        syncScreensToState();
+      }
+    });
+
     $('#btn-trash').addEventListener('click', () => {
       const res = TurnManager.trashAll();
       if (!res.ok) {
@@ -785,6 +801,28 @@ const UI = (() => {
 
   function showModal(sel) { $(sel).classList.remove('hidden'); }
   function hideModal(sel) { $(sel).classList.add('hidden'); }
+
+  // TEMPORARY (debug Back/Forward): after jumping to a restored snapshot,
+  // clear any mid-action UI selection and show whichever screen matches the
+  // restored phase (game over / trader / victory), same as a live play would.
+  function syncScreensToState() {
+    hideModal('#screen-gameover');
+    hideModal('#screen-victory');
+    hideModal('#screen-trader');
+    hideModal('#screen-levelup');
+    pendingDrops = [];
+    dragData = null;
+    spellTargetState = null;
+    pendingLevelUps = 0;
+    const phase = TurnManager.getPhase();
+    if (phase === 'game-over') {
+      showGameOver();
+    } else if (phase === 'room-clear') {
+      if (Run.isBossRoom()) showVictory();
+      else showTrader();
+    }
+    renderAll();
+  }
 
   function startNewRun() {
     hideModal('#screen-gameover');

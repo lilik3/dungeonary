@@ -312,10 +312,21 @@ const Board = (() => {
     return { size: SIZE, grid, roomNumber };
   }
 
+  // TEMPORARY (debug Back/Forward): full state in/out for snapshotting.
+  function exportState() {
+    return { grid, monsters, roomNumber };
+  }
+
+  function importState(data) {
+    grid = data.grid;
+    monsters = data.monsters;
+    roomNumber = data.roomNumber;
+  }
+
   return {
     SIZE, generateRoom, getCell, getCellLetter, getLivingMonsterAt, getMonsters,
     getLivingMonsters, getMonster, roomCleared, computeLineCells, maxLineLength, wordCandidateAt,
     triggerTrapsFor, writeLetters, removeWordAt, resetTrapTurnFlags, moveMonster, killMonster,
-    cellIsEmpty, getState, inBounds
+    cellIsEmpty, getState, inBounds, exportState, importState
   };
 })();

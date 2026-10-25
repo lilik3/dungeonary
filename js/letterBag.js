@@ -57,5 +57,18 @@ const LetterBag = (() => {
     return weightedRandomLetter();
   }
 
-  return { draw, requestLetter, hasRequest, clearRequest, addLuckCharges, WEIGHTS };
+  // TEMPORARY (debug Back/Forward): full state in/out for snapshotting.
+  function exportState() {
+    return { luckCharges, requestedLetter };
+  }
+
+  function importState(data) {
+    luckCharges = data.luckCharges;
+    requestedLetter = data.requestedLetter;
+  }
+
+  return {
+    draw, requestLetter, hasRequest, clearRequest, addLuckCharges, WEIGHTS,
+    exportState, importState
+  };
 })();

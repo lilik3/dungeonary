@@ -69,9 +69,20 @@ const Inventory = (() => {
     return capacity;
   }
 
+  // TEMPORARY (debug Back/Forward): full state in/out for snapshotting.
+  function exportState() {
+    return { capacity, tokens, nextId };
+  }
+
+  function importState(data) {
+    capacity = data.capacity;
+    tokens = data.tokens;
+    nextId = data.nextId;
+  }
+
   return {
     reset, hasSpace, freeSlots, addLetter, discard, getTokens,
     tokensForIds, consumeTokens, canUpgrade, nextUpgradeCost,
-    upgradeCapacity, getCapacity, MAX_CAPACITY
+    upgradeCapacity, getCapacity, MAX_CAPACITY, exportState, importState
   };
 })();
