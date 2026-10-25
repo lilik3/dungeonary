@@ -340,6 +340,21 @@ const UI = (() => {
     }
   }
 
+  // Sort button: A-Z by letter, Jokers always last (they're not a real letter).
+  function sortRackAlphabetically() {
+    syncRackOrder();
+    const tokenMap = new Map(Inventory.getTokens().map(t => [t.id, t]));
+    rackOrder.sort((a, b) => {
+      const la = tokenMap.get(a).letter;
+      const lb = tokenMap.get(b).letter;
+      const ja = la === LetterBag.JOKER_LETTER;
+      const jb = lb === LetterBag.JOKER_LETTER;
+      if (ja !== jb) return ja ? 1 : -1;
+      return la < lb ? -1 : la > lb ? 1 : 0;
+    });
+    renderRack();
+  }
+
   function renderRack() {
     const rackEl = $('#rack');
     rackEl.innerHTML = '';
@@ -830,6 +845,8 @@ const UI = (() => {
       spellUnlockPanelOpen = !spellUnlockPanelOpen;
       renderSpellUnlockPanel();
     });
+
+    $('#btn-sort-rack').addEventListener('click', () => sortRackAlphabetically());
 
     $('#btn-trash').addEventListener('click', () => {
       const res = TurnManager.trashAll();
