@@ -104,6 +104,9 @@ const Run = (() => {
     if (state.roomNumber >= TOTAL_ROOMS) return false; // run complete / victory
     state.roomNumber++;
     Board.generateRoom(state.roomNumber);
+    // Per feedback: a new room starts with a completely fresh rack rather
+    // than carrying over whatever letters were left from the last one.
+    Inventory.discard(Inventory.getTokens().map(t => t.id));
     refillRack();
     return true;
   }
