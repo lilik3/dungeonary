@@ -149,6 +149,7 @@ body {
 .cell.selectable { cursor: pointer; }
 .cell.drop-target { box-shadow: 0 0 0 3px var(--accent-gold) inset; background: #3a3220; }
 .cell.drop-invalid { box-shadow: 0 0 0 3px var(--accent-red) inset; }
+.cell.aoe-preview { background: rgba(232, 184, 75, 0.35); box-shadow: 0 0 0 2px var(--accent-gold) inset; }
 
 /* Monster cells: the LETTER is the dominant, legible element (per feedback -
    the monster's letter must be unmistakable at a glance), the emoji is a

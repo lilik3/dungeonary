@@ -158,10 +158,14 @@ const TurnManager = (() => {
     return true;
   }
 
+  // A new room is a fresh turn for spell purposes too (per feedback): any
+  // spell used in the room you just cleared becomes castable again, but
+  // partially-fed letters are untouched - they're not reset anywhere.
   function continueFromTrader() {
     History.capture();
     const more = Run.advanceRoom();
     phase = 'playing';
+    Spells.resetTurnUsage(Run.getState());
     return more;
   }
 

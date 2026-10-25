@@ -205,12 +205,47 @@ const UI = (() => {
 
         if (spellTargetState && phase === 'playing') {
           div.classList.add('selectable');
+          const def = Spells.getDef(spellTargetState.spellId);
+          if (def.target === 'cell') {
+            div.addEventListener('mouseenter', () => showAoePreview(spellTargetState.spellId, r, c));
+            div.addEventListener('mouseleave', clearAoePreview);
+          }
         }
 
         div.addEventListener('click', () => handleCellClick(r, c));
         boardEl.appendChild(div);
       }
     }
+  }
+
+  // Which cells a cell-targeted AOE spell would affect if cast centered on
+  // (r,c) - mirrors the shapes each spell actually resolves with.
+  function aoeCellsFor(spellId, r, c) {
+    if (spellId === 'fire') {
+      const cells = [];
+      for (let rr = r - 1; rr <= r + 1; rr++) {
+        for (let cc = c - 1; cc <= c + 1; cc++) {
+          if (Board.inBounds(rr, cc)) cells.push([rr, cc]);
+        }
+      }
+      return cells;
+    }
+    if (spellId === 'cleanse') {
+      return [[r, c], [r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].filter(([rr, cc]) => Board.inBounds(rr, cc));
+    }
+    return [[r, c]];
+  }
+
+  function showAoePreview(spellId, r, c) {
+    clearAoePreview();
+    for (const [rr, cc] of aoeCellsFor(spellId, r, c)) {
+      const el = document.querySelector(`.cell[data-r="${rr}"][data-c="${cc}"]`);
+      if (el) el.classList.add('aoe-preview');
+    }
+  }
+
+  function clearAoePreview() {
+    document.querySelectorAll('.cell.aoe-preview').forEach(el => el.classList.remove('aoe-preview'));
   }
 
   // Keeps the player's own drag-to-reorder sequence in sync with whatever
@@ -572,15 +607,6 @@ const UI = (() => {
       handleSpellResult(res);
       return;
     }
-    if (def.target === 'placedWord') {
-      if (Board.getCellLetter(r, c) == null || Board.getLivingMonsterAt(r, c)) {
-        log('Válassz egy lerakott betűt tartalmazó mezőt (élő szörny nem lehet).', 'danger');
-        return;
-      }
-      const res = TurnManager.castSpell(def.id, { r, c });
-      handleSpellResult(res);
-      return;
-    }
   }
 
   function handleCastClick(id) {
@@ -607,9 +633,8 @@ const UI = (() => {
         });
         break;
       case 'cell':
-      case 'placedWord':
         spellTargetState = { spellId: id, stage: 'cell' };
-        log(def.target === 'placedWord' ? 'Válassz egy lerakott betűt a tábláról.' : 'Válassz egy mezőt a tábláról.');
+        log('Válassz egy mezőt a tábláról (vidd az egeret fölé, hogy lásd a hatást).');
         renderAll();
         break;
       case 'monster-then-cell':
@@ -658,7 +683,11 @@ const UI = (() => {
         log(`${m.emoji} ${m.name} (${m.letter}) ${died ? 'elpusztult!' : 'megsebződött.'}`, died ? 'good' : null);
       }
     }
-    if (e.cleared) log('Cleanse: a kijelölt betű eltávolítva a tábláról.', 'good');
+    if (e.cleared) {
+      log(e.cleared.length > 0
+        ? `Cleanse: ${e.cleared.length} mezőt megtisztítottál.`
+        : 'Cleanse: nem volt mit eltávolítani ezen a területen.', 'good');
+    }
     if (e.hit && !e.to) {
       log(`Fire: ${e.hit.length} ellenfél megsebződött a 3x3-as területen.`, 'good');
       for (const m of e.killed) log(`${m.name} (${m.letter}) elpusztult! +${m.xp} XP`, 'good');

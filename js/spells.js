@@ -42,8 +42,8 @@ const Spells = (() => {
     },
     {
       id: 'cleanse', word: 'CLEAN', emoji: '🧹', minCast: 3,
-      startUnlocked: false, target: 'placedWord',
-      desc: 'Eltávolít egy lerakott betűt a tábláról (szabaddá teszi a mezőt).'
+      startUnlocked: false, target: 'cell',
+      desc: 'Kereszt alakú (5 mezős) területen eltávolítja a lerakott betűket.'
     }
   ];
 
@@ -245,9 +245,13 @@ const Spells = (() => {
         break;
       }
       case 'cleanse': {
+        // Per feedback: a plus-shaped (5-cell) AOE instead of a single tile.
         const { r, c } = args;
-        if (!Board.removeWordAt(r, c)) return { ok: false, reason: 'invalid-target' };
-        effect = { cleared: [r, c] };
+        if (!Board.inBounds(r, c)) return { ok: false, reason: 'invalid-cell' };
+        const area = [[r, c], [r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]
+          .filter(([rr, cc]) => Board.inBounds(rr, cc));
+        const cleared = area.filter(([rr, cc]) => Board.removeWordAt(rr, cc));
+        effect = { cleared, center: [r, c] };
         break;
       }
     }
