@@ -9,11 +9,12 @@
 // Scrabble. Monster letters are rendered large and bold so they're always
 // legible at a glance, with the monster's emoji as a small corner badge.
 const UI = (() => {
-  let pendingDrops = []; // [{r, c, letter, tokenId}] - not yet committed to the board
+  let pendingDrops = []; // [{r, c, letter, tokenId, isJoker?}] - not yet committed to the board
   let dragData = null; // { tokenId, letter } while a drag is in progress
   let spellTargetState = null; // { spellId, stage, monsterId }
   let pendingLevelUps = 0;
   let currentPerkOptions = [];
+  let rackOrder = []; // token ids in the player's own chosen display order (drag to reorder)
 
   const $ = sel => document.querySelector(sel);
 
@@ -66,7 +67,7 @@ const UI = (() => {
       const r = dir === 'H' ? fixed : pos;
       const c = dir === 'H' ? pos : fixed;
       const drop = drops.find(p => p.r === r && p.c === c);
-      if (drop) return { letter: drop.letter, tokenId: drop.tokenId, r, c };
+      if (drop) return { letter: drop.letter, tokenId: drop.tokenId, isJoker: drop.isJoker, r, c };
       const existing = Board.getCellLetter(r, c);
       if (existing != null) return { letter: existing, tokenId: null, r, c };
       return null;
@@ -128,7 +129,6 @@ const UI = (() => {
     renderSpellPanel();
     renderActionButtons();
     renderPlacementControls();
-    renderLetterPicker(null);
   }
 
   function renderHud() {
@@ -171,6 +171,7 @@ const UI = (() => {
           div.classList.add('pending-tile', 'selectable');
           div.textContent = pending.letter;
           div.title = 'Kattints a visszavonáshoz';
+          if (pending.isJoker) div.classList.add('from-joker');
         } else if (m) {
           div.classList.add('has-monster');
           div.title = `${m.name} (${m.letter}) — HP ${m.hp}/${m.maxHp}, sebzés ${m.dmg}`;
@@ -194,6 +195,7 @@ const UI = (() => {
         } else if (cell.placed) {
           div.classList.add('placed-tile');
           div.textContent = cell.placed.letter;
+          if (cell.placed.isJoker) div.classList.add('from-joker');
         } else {
           if (cell.trap && !cell.trapSpent) div.classList.add('trap');
           if (cell.reward && !cell.reward.consumed) {
@@ -211,15 +213,32 @@ const UI = (() => {
     }
   }
 
+  // Keeps the player's own drag-to-reorder sequence in sync with whatever
+  // tokens actually exist: drops ids that are gone, appends new ones at the end.
+  function syncRackOrder() {
+    const currentIds = Inventory.getTokens().map(t => t.id);
+    const idSet = new Set(currentIds);
+    rackOrder = rackOrder.filter(id => idSet.has(id));
+    for (const id of currentIds) {
+      if (!rackOrder.includes(id)) rackOrder.push(id);
+    }
+  }
+
   function renderRack() {
     const rackEl = $('#rack');
     rackEl.innerHTML = '';
-    const tokens = Inventory.getTokens();
+    syncRackOrder();
+    const tokenMap = new Map(Inventory.getTokens().map(t => [t.id, t]));
     const reserved = reservedTokenIds();
-    for (const t of tokens) {
+    for (const id of rackOrder) {
+      const t = tokenMap.get(id);
+      if (!t) continue;
+      const isJoker = t.letter === LetterBag.JOKER_LETTER;
       const div = document.createElement('div');
       div.className = 'tile';
-      div.textContent = t.letter;
+      div.dataset.tokenId = t.id;
+      div.textContent = isJoker ? '★' : t.letter;
+      if (isJoker) { div.classList.add('joker-tile'); div.title = 'Joker — bármilyen betűt helyettesít'; }
       if (reserved.has(t.id)) div.classList.add('reserved');
       div.addEventListener('mousedown', (e) => handleTileMouseDown(e, t.id, t.letter));
       rackEl.appendChild(div);
@@ -334,31 +353,34 @@ const UI = (() => {
     });
   }
 
-  function renderLetterPicker(forSpellId) {
+  // Generic A-Z picker, reused by the Letter Call spell and by a Joker tile
+  // dropped on the board (both need "which letter is this, exactly?").
+  function showLetterPicker(promptText, onChoose) {
     const panel = $('#letter-picker');
-    if (!forSpellId) {
-      panel.classList.add('hidden');
-      panel.innerHTML = '';
-      return;
-    }
     panel.classList.remove('hidden');
     panel.innerHTML = '';
     const hint = document.createElement('div');
     hint.style.width = '100%';
     hint.style.fontSize = '12px';
     hint.style.color = 'var(--text-dim)';
-    hint.textContent = 'Válaszd ki a kért betűt:';
+    hint.textContent = promptText;
     panel.appendChild(hint);
     for (const letter of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
       const btn = document.createElement('button');
       btn.className = 'letter-pick-btn';
       btn.textContent = letter;
       btn.addEventListener('click', () => {
-        const res = TurnManager.castSpell(forSpellId, { letter });
-        handleSpellResult(res);
+        hideLetterPicker();
+        onChoose(letter);
       });
       panel.appendChild(btn);
     }
+  }
+
+  function hideLetterPicker() {
+    const panel = $('#letter-picker');
+    panel.classList.add('hidden');
+    panel.innerHTML = '';
   }
 
   // ---------- DRAG AND DROP ----------
@@ -381,8 +403,8 @@ const UI = (() => {
     $('#drag-ghost').classList.add('hidden');
   }
 
-  // Finds whichever drop target (a board cell or a spell slot) sits under
-  // the given viewport point.
+  // Finds whichever drop target (a board cell, a spell slot, or another rack
+  // tile to reorder onto) sits under the given viewport point.
   function dropTargetAt(x, y) {
     const el = document.elementFromPoint(x, y);
     if (!el) return null;
@@ -395,6 +417,8 @@ const UI = (() => {
         letter: slotEl.textContent, filled: slotEl.classList.contains('filled')
       };
     }
+    const tileEl = el.closest('#rack .tile');
+    if (tileEl) return { type: 'rackTile', el: tileEl, tokenId: +tileEl.dataset.tokenId };
     return null;
   }
 
@@ -405,6 +429,18 @@ const UI = (() => {
     document.querySelectorAll('.spell-slot.slot-drop-target, .spell-slot.slot-drop-invalid').forEach(el => {
       el.classList.remove('slot-drop-target', 'slot-drop-invalid');
     });
+    document.querySelectorAll('.tile.reorder-target').forEach(el => el.classList.remove('reorder-target'));
+  }
+
+  // Moves the dragged tile to just before the target tile in the player's
+  // own rack order (pure cosmetic reordering, no gameplay effect).
+  function reorderRack(draggedTokenId, targetTokenId) {
+    if (draggedTokenId === targetTokenId) return;
+    const idx = rackOrder.indexOf(draggedTokenId);
+    if (idx === -1) return;
+    rackOrder.splice(idx, 1);
+    const targetIdx = rackOrder.indexOf(targetTokenId);
+    rackOrder.splice(targetIdx === -1 ? rackOrder.length : targetIdx, 0, draggedTokenId);
   }
 
   function handleTileMouseDown(e, tokenId, letter) {
@@ -414,8 +450,9 @@ const UI = (() => {
     if (reservedTokenIds().has(tokenId)) return;
     e.preventDefault();
 
+    const isJoker = letter === LetterBag.JOKER_LETTER;
     dragData = { tokenId, letter };
-    showGhost(e.clientX, e.clientY, letter);
+    showGhost(e.clientX, e.clientY, isJoker ? '★' : letter);
 
     const onMove = (ev) => {
       moveGhost(ev.clientX, ev.clientY);
@@ -425,8 +462,10 @@ const UI = (() => {
       if (target.type === 'cell') {
         target.el.classList.add(wouldAcceptDrop(target.r, target.c) ? 'drop-target' : 'drop-invalid');
       } else if (target.type === 'slot') {
-        const ok = !target.filled && target.letter === letter;
+        const ok = !target.filled && (isJoker || target.letter === letter);
         target.el.classList.add(ok ? 'slot-drop-target' : 'slot-drop-invalid');
+      } else if (target.type === 'rackTile' && target.tokenId !== tokenId) {
+        target.el.classList.add('reorder-target');
       }
     };
     const onUp = (ev) => {
@@ -439,6 +478,8 @@ const UI = (() => {
         tryDrop(target.r, target.c);
       } else if (target && target.type === 'slot') {
         trySpellSlotDrop(target.spellId);
+      } else if (target && target.type === 'rackTile') {
+        reorderRack(tokenId, target.tokenId);
       }
       dragData = null;
       renderAll();
@@ -453,7 +494,15 @@ const UI = (() => {
       log('Ide nem helyezhető el betű.', 'danger');
       return;
     }
-    pendingDrops.push({ r, c, letter: dragData.letter, tokenId: dragData.tokenId });
+    const { tokenId, letter } = dragData;
+    if (letter === LetterBag.JOKER_LETTER) {
+      showLetterPicker('A Joker milyen betű legyen?', (chosen) => {
+        pendingDrops.push({ r, c, letter: chosen, tokenId, isJoker: true });
+        renderAll();
+      });
+      return;
+    }
+    pendingDrops.push({ r, c, letter, tokenId });
   }
 
   function trySpellSlotDrop(spellId) {
@@ -552,7 +601,10 @@ const UI = (() => {
       }
       case 'letter':
         spellTargetState = null;
-        renderLetterPicker(id);
+        showLetterPicker('Válaszd ki a kért betűt:', (letter) => {
+          const res = TurnManager.castSpell(id, { letter });
+          handleSpellResult(res);
+        });
         break;
       case 'cell':
       case 'placedWord':
@@ -581,7 +633,6 @@ const UI = (() => {
     }
     describeSpellEffect(res);
     spellTargetState = null;
-    renderLetterPicker(null);
     processTurnOutcome(res.turnOutcome);
   }
 
@@ -813,6 +864,7 @@ const UI = (() => {
     hideModal('#screen-victory');
     hideModal('#screen-trader');
     hideModal('#screen-levelup');
+    hideLetterPicker();
     pendingDrops = [];
     dragData = null;
     spellTargetState = null;
@@ -834,9 +886,11 @@ const UI = (() => {
     hideModal('#screen-levelup');
     $('#screen-start').classList.add('hidden');
     $('#screen-game').classList.remove('hidden');
+    hideLetterPicker();
     pendingDrops = [];
     dragData = null;
     spellTargetState = null;
+    rackOrder = [];
     clearLog();
     TurnManager.startRun();
     log('Új futam indult! Jó szerencsét a kazamatában.', 'important');

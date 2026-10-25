@@ -364,6 +364,24 @@ body {
 }
 .tile:hover { transform: translateY(-3px); }
 .tile.reserved { opacity: 0.3; cursor: not-allowed; transform: none; }
+.tile.reorder-target { box-shadow: 0 0 0 3px var(--accent-gold), 0 3px 0 #7a5a1f; }
+
+/* Joker: a wildcard tile, styled to stand out from ordinary letters. */
+.tile.joker-tile {
+  background: linear-gradient(145deg, #9b59b6, #6c3483);
+  border-color: #d9a6f0;
+  color: #fff;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
+}
+.cell.from-joker { box-shadow: 0 0 0 2px #d9a6f0 inset; }
+.cell.from-joker::after {
+  content: '★';
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  font-size: 11px;
+  color: #d9a6f0;
+}
 
 #action-buttons { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 

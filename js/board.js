@@ -264,12 +264,10 @@ const Board = (() => {
     return hits;
   }
 
-  // Makes newly-placed letters permanent (only called once we know the word
-  // killed at least one monster, per the "stays only if it killed" rule).
-  // newLetters: [{r, c, letter}]
+  // Makes newly-placed letters permanent. newLetters: [{r, c, letter, isJoker?}]
   function writeLetters(newLetters) {
-    for (const { r, c, letter } of newLetters) {
-      grid[r][c].placed = { letter };
+    for (const { r, c, letter, isJoker } of newLetters) {
+      grid[r][c].placed = isJoker ? { letter, isJoker: true } : { letter };
     }
   }
 

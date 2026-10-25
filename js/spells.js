@@ -98,8 +98,21 @@ const Spells = (() => {
     return fedCount(state, id) >= getDef(id).minCast;
   }
 
+  // A Joker fills whichever slot is still open, regardless of what it needs.
   function canFeedLetter(state, id, letter) {
-    return state.unlockedSpells.has(id) && remainingFor(state, id, letter) > 0;
+    if (!state.unlockedSpells.has(id)) return false;
+    if (letter === LetterBag.JOKER_LETTER) return !isComplete(state, id);
+    return remainingFor(state, id, letter) > 0;
+  }
+
+  // Which real letter a Joker fed into this spell would actually credit -
+  // the first one (in the name's own letter order) still needing more.
+  function firstNeededLetter(state, id) {
+    const def = getDef(id);
+    for (const letter of def.word) {
+      if (remainingFor(state, id, letter) > 0) return letter;
+    }
+    return null;
   }
 
   // The visual slots for this spell's name, in order, each marked filled or
@@ -123,10 +136,11 @@ const Spells = (() => {
     if (tokens.length !== 1) return { ok: false, reason: 'invalid-token' };
     const letter = tokens[0].letter;
     if (!canFeedLetter(state, id, letter)) return { ok: false, reason: 'wrong-letter', letter };
+    const creditLetter = letter === LetterBag.JOKER_LETTER ? firstNeededLetter(state, id) : letter;
     Inventory.consumeTokens([tokenId]);
     const fed = fedMap(state, id);
-    state.spellFed[id] = { ...fed, [letter]: (fed[letter] || 0) + 1 };
-    return { ok: true, letter, fedCount: fedCount(state, id), total: def.totalLetters, castable: isCastable(state, id) };
+    state.spellFed[id] = { ...fed, [creditLetter]: (fed[creditLetter] || 0) + 1 };
+    return { ok: true, letter: creditLetter, fedCount: fedCount(state, id), total: def.totalLetters, castable: isCastable(state, id) };
   }
 
   function cast(id, state, args) {

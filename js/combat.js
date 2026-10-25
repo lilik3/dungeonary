@@ -44,11 +44,15 @@ const Combat = (() => {
     if (tokens.length !== tokenIds.length) {
       return { ok: false, reason: 'invalid-tokens' };
     }
-    // every new cell's letter must match the rack token it claims to use
+    // every new cell's letter must match the rack token it claims to use -
+    // unless that token is a Joker, which stands in for whatever was chosen.
     const tokenById = new Map(tokens.map(t => [t.id, t]));
     for (const p of newCells) {
       const tok = tokenById.get(p.tokenId);
-      if (!tok || tok.letter !== p.letter) return { ok: false, reason: 'token-mismatch' };
+      if (!tok) return { ok: false, reason: 'token-mismatch' };
+      if (tok.letter !== p.letter && tok.letter !== LetterBag.JOKER_LETTER) {
+        return { ok: false, reason: 'token-mismatch' };
+      }
     }
 
     const word = placementCells.map(p => p.letter).join('');
@@ -66,7 +70,7 @@ const Combat = (() => {
     // Letter-match-by-position damage: every living monster the line passes through.
     const { hit, killed } = resolveMonstersInCells(placementCells);
 
-    Board.writeLetters(newCells.map(p => ({ r: p.r, c: p.c, letter: p.letter })));
+    Board.writeLetters(newCells.map(p => ({ r: p.r, c: p.c, letter: p.letter, isJoker: p.isJoker })));
 
     Inventory.consumeTokens(tokenIds);
 

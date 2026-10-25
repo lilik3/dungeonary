@@ -1,11 +1,16 @@
 // Weighted letter bag: infinite weighted-random draw (no depletion), per GDD section 6.
 // Correction/pity system intentionally OFF for this MVP (GDD explicitly recommends starting without it).
 const LetterBag = (() => {
-  // Standard Scrabble-like English letter frequency weights.
+  // Internal marker for the Joker tile (per feedback): a wildcard letter,
+  // as rare as the rarest real letters, that can stand in for any letter.
+  const JOKER_LETTER = '*';
+
+  // Standard Scrabble-like English letter frequency weights, plus the Joker
+  // at the same rarity as the rarest real letters.
   const WEIGHTS = {
     E: 12, A: 9, I: 9, O: 8, N: 6, R: 6, T: 6, L: 4, S: 4, U: 4, D: 4,
     G: 3, B: 2, C: 2, M: 2, P: 2, F: 2, H: 2, V: 2, W: 2, Y: 2,
-    K: 1, J: 1, X: 1, Q: 1, Z: 1
+    K: 1, J: 1, X: 1, Q: 1, Z: 1, [JOKER_LETTER]: 1
   };
 
   const LETTERS = Object.keys(WEIGHTS);
@@ -69,6 +74,6 @@ const LetterBag = (() => {
 
   return {
     draw, requestLetter, hasRequest, clearRequest, addLuckCharges, WEIGHTS,
-    exportState, importState
+    exportState, importState, JOKER_LETTER
   };
 })();
