@@ -7,12 +7,12 @@
 // once a valid word is played, whether or not it killed anything.
 const Combat = (() => {
   // Deals 1 damage to every distinct living monster whose cell appears in
-  // `cells` ([{r,c}, ...]), handling kills and their linked rewards.
+  // `cells` ([{r,c}, ...]), handling kills. Rewards are separate now (per
+  // feedback) - they trigger on direct letter placement, not on kills.
   function resolveMonstersInCells(cells) {
     const seen = new Set();
     const hit = [];
     const killed = [];
-    const rewards = [];
     for (const { r, c } of cells) {
       const m = Board.getLivingMonsterAt(r, c);
       if (m && !seen.has(m.id)) {
@@ -20,13 +20,12 @@ const Combat = (() => {
         m.hp -= 1;
         hit.push(m);
         if (m.hp <= 0) {
-          const reward = Board.killMonster(m.id);
+          Board.killMonster(m.id);
           killed.push(m);
-          if (reward) rewards.push(reward);
         }
       }
     }
-    return { hit, killed, rewards };
+    return { hit, killed };
   }
 
   // placementCells: [{r, c, letter, tokenId}] in order along the line.
@@ -57,12 +56,15 @@ const Combat = (() => {
       return { ok: false, reason: 'invalid-word', word };
     }
 
-    // Traps fire immediately on the new cells, regardless of outcome below.
-    const trapHits = Board.triggerTrapsFor(newCells.map(p => [p.r, p.c]));
+    // Traps and reward fields fire immediately when a new letter lands on
+    // them, regardless of the combat outcome below.
+    const newCellCoords = newCells.map(p => [p.r, p.c]);
+    const trapHits = Board.triggerTrapsFor(newCellCoords);
     const trapDamage = trapHits.length * 2;
+    const rewards = Board.triggerRewardsFor(newCellCoords);
 
     // Letter-match-by-position damage: every living monster the line passes through.
-    const { hit, killed, rewards } = resolveMonstersInCells(placementCells);
+    const { hit, killed } = resolveMonstersInCells(placementCells);
 
     Board.writeLetters(newCells.map(p => ({ r: p.r, c: p.c, letter: p.letter })));
 

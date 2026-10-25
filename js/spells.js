@@ -166,21 +166,23 @@ const Spells = (() => {
 
         Board.moveMonster(monsterId, r, c);
 
-        let hit = [], killed = [], rewards = [];
+        let hit = [], killed = [];
         if (!isolated) {
           const extendedValid = extended.filter(cand => Dictionary.isValidWord(cand.word));
           const touchedCells = extendedValid.flatMap(cand => cand.cells);
-          ({ hit, killed, rewards } = Combat.resolveMonstersInCells(touchedCells));
+          ({ hit, killed } = Combat.resolveMonstersInCells(touchedCells));
         }
 
+        // Landing directly on a trap or reward field triggers it, same as a
+        // player-placed letter would.
         const trapDamage = Board.triggerTrapsFor([[r, c]]).length * 2;
+        const rewards = Board.triggerRewardsFor([[r, c]]);
         if (trapDamage > 0 && m.alive) {
           m.hp -= trapDamage;
           if (!hit.includes(m)) hit.push(m);
           if (m.hp <= 0) {
-            const reward = Board.killMonster(m.id);
+            Board.killMonster(m.id);
             killed.push(m);
-            if (reward) rewards.push(reward);
           }
         }
 
@@ -201,10 +203,11 @@ const Spells = (() => {
         break;
       }
       case 'fire': {
+        // Fire doesn't place a letter anywhere, so it can't trigger reward
+        // fields - only direct placement does (per feedback).
         const { r, c } = args;
         const hit = [];
         const killed = [];
-        const rewards = [];
         for (let rr = r - 1; rr <= r + 1; rr++) {
           for (let cc = c - 1; cc <= c + 1; cc++) {
             if (!Board.inBounds(rr, cc)) continue;
@@ -213,14 +216,13 @@ const Spells = (() => {
               m.hp -= 1;
               hit.push(m);
               if (m.hp <= 0) {
-                const reward = Board.killMonster(m.id);
+                Board.killMonster(m.id);
                 killed.push(m);
-                if (reward) rewards.push(reward);
               }
             }
           }
         }
-        effect = { hit, killed, rewards, center: [r, c] };
+        effect = { hit, killed, rewards: [], center: [r, c] };
         break;
       }
       case 'ward': {

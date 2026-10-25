@@ -599,6 +599,9 @@ const UI = (() => {
       if (e.trapDamage > 0) {
         log(`Csapdára léptetted! -${e.trapDamage} HP az ellenfélnek.`, 'good');
       }
+      for (const r of e.rewards || []) {
+        log(r.kind === 'gold' ? 'Aranymező aktiválva: +5 arany!' : 'Gyógyítómező aktiválva: +3 HP!', 'good');
+      }
       for (const m of e.hit) {
         const died = !m.alive;
         log(`${m.emoji} ${m.name} (${m.letter}) ${died ? 'elpusztult!' : 'megsebződött.'}`, died ? 'good' : null);

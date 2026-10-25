@@ -28,10 +28,6 @@ const Board = (() => {
     return r >= 0 && r < SIZE && c >= 0 && c < SIZE;
   }
 
-  function neighbors(r, c) {
-    return [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].filter(([rr, cc]) => inBounds(rr, cc));
-  }
-
   function cellIsEmpty(r, c) {
     const cell = grid[r][c];
     const livingMonster = cell.monsterId && monsters.get(cell.monsterId) && monsters.get(cell.monsterId).alive;
@@ -98,22 +94,18 @@ const Board = (() => {
     const plan = ROOM_PLANS[num] || ROOM_PLANS[5];
     const freeCells = shuffle(allCells());
 
-    const placedMonsters = [];
-
     if (plan.boss) {
       const boss = Monsters.createBoss();
       const [br, bc] = popSpacedMonsterCell(freeCells);
       boss.r = br; boss.c = bc;
       grid[br][bc].monsterId = boss.id;
       monsters.set(boss.id, boss);
-      placedMonsters.push(boss);
       for (let i = 0; i < plan.count - 1; i++) {
         const m = Monsters.createMonsterByTier('swarm');
         const [r, c] = popSpacedMonsterCell(freeCells);
         m.r = r; m.c = c;
         grid[r][c].monsterId = m.id;
         monsters.set(m.id, m);
-        placedMonsters.push(m);
       }
     } else {
       for (let i = 0; i < plan.elites; i++) {
@@ -122,7 +114,6 @@ const Board = (() => {
         m.r = r; m.c = c;
         grid[r][c].monsterId = m.id;
         monsters.set(m.id, m);
-        placedMonsters.push(m);
       }
       const remaining = plan.count - plan.elites;
       for (let i = 0; i < remaining; i++) {
@@ -133,7 +124,6 @@ const Board = (() => {
         m.r = r; m.c = c;
         grid[r][c].monsterId = m.id;
         monsters.set(m.id, m);
-        placedMonsters.push(m);
       }
     }
 
@@ -146,15 +136,16 @@ const Board = (() => {
       }
     }
 
+    // Per feedback: reward fields no longer ride on a monster's death -
+    // they trigger by landing a new letter directly on them (same as traps),
+    // so they're just scattered on empty floor like traps are.
     let rewardsToPlace = plan.rewards;
-    const monsterShuffled = shuffle(placedMonsters.slice());
-    for (const m of monsterShuffled) {
+    for (const [r, c] of freeCells) {
       if (rewardsToPlace <= 0) break;
-      const opts = neighbors(m.r, m.c).filter(([r, c]) => cellIsEmpty(r, c) && !grid[r][c].trap && !grid[r][c].reward);
-      if (opts.length === 0) continue;
-      const [r, c] = opts[Math.floor(Math.random() * opts.length)];
-      grid[r][c].reward = { kind: Math.random() < 0.6 ? 'gold' : 'heal', linkedMonsterId: m.id, consumed: false };
-      rewardsToPlace--;
+      if (cellIsEmpty(r, c) && !grid[r][c].trap && !grid[r][c].reward) {
+        grid[r][c].reward = { kind: Math.random() < 0.6 ? 'gold' : 'heal', consumed: false };
+        rewardsToPlace--;
+      }
     }
 
     return getState();
@@ -258,6 +249,21 @@ const Board = (() => {
     return hits;
   }
 
+  // Reward fields fire the same way traps do (per feedback) - only when a
+  // new letter lands directly on them, not whenever the linked area gets
+  // fought over nearby.
+  function triggerRewardsFor(cells) {
+    const hits = [];
+    for (const [r, c] of cells) {
+      const cell = grid[r][c];
+      if (cell.reward && !cell.reward.consumed) {
+        cell.reward.consumed = true;
+        hits.push(cell.reward);
+      }
+    }
+    return hits;
+  }
+
   // Makes newly-placed letters permanent (only called once we know the word
   // killed at least one monster, per the "stays only if it killed" rule).
   // newLetters: [{r, c, letter}]
@@ -289,23 +295,14 @@ const Board = (() => {
   }
 
   // Monster dies: its letter becomes a permanent inert tile on its cell.
+  // No longer touches reward fields - those trigger on direct placement now.
   function killMonster(id) {
     const m = monsters.get(id);
-    if (!m) return null;
+    if (!m) return false;
     m.alive = false;
     grid[m.r][m.c].monsterId = null;
     grid[m.r][m.c].placed = { letter: m.letter };
-    let reward = null;
-    const cellsToCheck = neighbors(m.r, m.c);
-    cellsToCheck.push([m.r, m.c]);
-    for (const [r, c] of cellsToCheck) {
-      const cell = grid[r][c];
-      if (cell.reward && cell.reward.linkedMonsterId === id && !cell.reward.consumed) {
-        cell.reward.consumed = true;
-        reward = cell.reward;
-      }
-    }
-    return reward;
+    return true;
   }
 
   function getState() {
@@ -326,7 +323,7 @@ const Board = (() => {
   return {
     SIZE, generateRoom, getCell, getCellLetter, getLivingMonsterAt, getMonsters,
     getLivingMonsters, getMonster, roomCleared, computeLineCells, maxLineLength, wordCandidateAt,
-    triggerTrapsFor, writeLetters, removeWordAt, resetTrapTurnFlags, moveMonster, killMonster,
+    triggerTrapsFor, triggerRewardsFor, writeLetters, removeWordAt, resetTrapTurnFlags, moveMonster, killMonster,
     cellIsEmpty, getState, inBounds, exportState, importState
   };
 })();
