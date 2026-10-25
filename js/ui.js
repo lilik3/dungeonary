@@ -15,6 +15,7 @@ const UI = (() => {
   let pendingLevelUps = 0;
   let currentPerkOptions = [];
   let rackOrder = []; // token ids in the player's own chosen display order (drag to reorder)
+  let spellUnlockPanelOpen = false; // TEMPORARY test menu: manual spell unlock toggles
 
   const $ = sel => document.querySelector(sel);
 
@@ -129,6 +130,35 @@ const UI = (() => {
     renderSpellPanel();
     renderActionButtons();
     renderPlacementControls();
+    renderSpellUnlockPanel();
+  }
+
+  // TEMPORARY (test menu): lets the player freely toggle which spells count
+  // as unlocked, instead of waiting for the normal level-up unlock order.
+  function renderSpellUnlockPanel() {
+    const panel = $('#spell-unlock-panel');
+    const s = Run.getState();
+    if (!s || !spellUnlockPanelOpen) {
+      panel.classList.add('hidden');
+      panel.innerHTML = '';
+      return;
+    }
+    panel.classList.remove('hidden');
+    panel.innerHTML = '';
+    for (const def of Spells.DEFS) {
+      const label = document.createElement('label');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = s.unlockedSpells.has(def.id);
+      checkbox.addEventListener('change', (e) => {
+        if (e.target.checked) s.unlockedSpells.add(def.id);
+        else s.unlockedSpells.delete(def.id);
+        renderAll();
+      });
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(`${def.emoji} ${def.word}`));
+      panel.appendChild(label);
+    }
   }
 
   function renderHud() {
@@ -794,6 +824,11 @@ const UI = (() => {
         log('⏩ TESZT: egy lépés előre.', 'important');
         syncScreensToState();
       }
+    });
+
+    $('#btn-spell-unlocks').addEventListener('click', () => {
+      spellUnlockPanelOpen = !spellUnlockPanelOpen;
+      renderSpellUnlockPanel();
     });
 
     $('#btn-trash').addEventListener('click', () => {
