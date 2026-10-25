@@ -129,6 +129,22 @@ const TurnManager = (() => {
     return { ...res, turnOutcome };
   }
 
+  // The free second monster move a fully-spelled BLINK grants right after
+  // its main cast - no charge/turn-usage check, it's already paid for.
+  function castBlinkBonusMove(args) {
+    if (phase !== 'playing') return { ok: false, reason: 'wrong-phase' };
+    History.capture();
+    const res = Spells.castBonusMove('blink', args);
+    if (!res.ok) return res;
+
+    let rewardInfo = null;
+    if (Array.isArray(res.effect.killed)) {
+      rewardInfo = { rewards: res.effect.rewards, killed: res.effect.killed };
+    }
+    const turnOutcome = checkImmediateOutcome(rewardInfo);
+    return { ...res, turnOutcome };
+  }
+
   // Explicit end of turn: surviving monsters attack, then the rack refills.
   function endTurn() {
     if (phase !== 'playing') return { ok: false, reason: 'wrong-phase' };
@@ -171,7 +187,7 @@ const TurnManager = (() => {
 
   return {
     getPhase, startRun, trashAll, submitWord, feedSpellLetter, castSpell,
-    endTurn, confirmLevelUp, continueFromTrader, isGodMode, setGodMode,
-    exportState, importState
+    castBlinkBonusMove, endTurn, confirmLevelUp, continueFromTrader,
+    isGodMode, setGodMode, exportState, importState
   };
 })();

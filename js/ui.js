@@ -207,7 +207,7 @@ const UI = (() => {
           div.classList.add('selectable');
           const def = Spells.getDef(spellTargetState.spellId);
           if (def.target === 'cell') {
-            div.addEventListener('mouseenter', () => showAoePreview(spellTargetState.spellId, r, c));
+            div.addEventListener('mouseenter', () => showAoePreview(spellTargetState.spellId, r, c, spellTargetState.full));
             div.addEventListener('mouseleave', clearAoePreview);
           }
           if (def.target === 'monster-then-cell' && spellTargetState.stage === 'cell') {
@@ -223,26 +223,39 @@ const UI = (() => {
   }
 
   // Which cells a cell-targeted AOE spell would affect if cast centered on
-  // (r,c) - mirrors the shapes each spell actually resolves with.
-  function aoeCellsFor(spellId, r, c) {
+  // (r,c) - mirrors the shapes each spell actually resolves with. `full`
+  // mirrors Spells.cast's own fullyFed check (per feedback: spelling out the
+  // whole word grows the area - FIRE to 4x4, CLEAN to a full 3x3).
+  function aoeCellsFor(spellId, r, c, full) {
     if (spellId === 'fire') {
       const cells = [];
-      for (let rr = r - 1; rr <= r + 1; rr++) {
-        for (let cc = c - 1; cc <= c + 1; cc++) {
+      const rMax = full ? r + 2 : r + 1;
+      const cMax = full ? c + 2 : c + 1;
+      for (let rr = r - 1; rr <= rMax; rr++) {
+        for (let cc = c - 1; cc <= cMax; cc++) {
           if (Board.inBounds(rr, cc)) cells.push([rr, cc]);
         }
       }
       return cells;
     }
     if (spellId === 'cleanse') {
+      if (full) {
+        const cells = [];
+        for (let rr = r - 1; rr <= r + 1; rr++) {
+          for (let cc = c - 1; cc <= c + 1; cc++) {
+            if (Board.inBounds(rr, cc)) cells.push([rr, cc]);
+          }
+        }
+        return cells;
+      }
       return [[r, c], [r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].filter(([rr, cc]) => Board.inBounds(rr, cc));
     }
     return [[r, c]];
   }
 
-  function showAoePreview(spellId, r, c) {
+  function showAoePreview(spellId, r, c, full) {
     clearAoePreview();
-    for (const [rr, cc] of aoeCellsFor(spellId, r, c)) {
+    for (const [rr, cc] of aoeCellsFor(spellId, r, c, full)) {
       const el = document.querySelector(`.cell[data-r="${rr}"][data-c="${cc}"]`);
       if (el) el.classList.add('aoe-preview');
     }
@@ -636,7 +649,9 @@ const UI = (() => {
         return;
       }
       if (!Board.cellIsEmpty(r, c)) { log('Üres mezőt válassz.', 'danger'); return; }
-      const res = TurnManager.castSpell('blink', { monsterId: spellTargetState.monsterId, r, c });
+      const res = spellTargetState.bonus
+        ? TurnManager.castBlinkBonusMove({ monsterId: spellTargetState.monsterId, r, c })
+        : TurnManager.castSpell('blink', { monsterId: spellTargetState.monsterId, r, c });
       handleSpellResult(res);
       return;
     }
@@ -663,15 +678,27 @@ const UI = (() => {
         handleSpellResult(res);
         break;
       }
-      case 'letter':
+      case 'letter': {
         spellTargetState = null;
-        showLetterPicker('Válaszd ki a kért betűt:', (letter) => {
-          const res = TurnManager.castSpell(id, { letter });
-          handleSpellResult(res);
-        });
+        // A fully-spelled NEED grants two requested letters instead of one
+        // (per feedback) - picked one after another, then cast together.
+        if (Spells.isComplete(s, id)) {
+          showLetterPicker('Teljes NEED! Válaszd ki az ELSŐ kért betűt:', (l1) => {
+            showLetterPicker('Válaszd ki a MÁSODIK kért betűt:', (l2) => {
+              const res = TurnManager.castSpell(id, { letters: [l1, l2] });
+              handleSpellResult(res);
+            });
+          });
+        } else {
+          showLetterPicker('Válaszd ki a kért betűt:', (letter) => {
+            const res = TurnManager.castSpell(id, { letter });
+            handleSpellResult(res);
+          });
+        }
         break;
+      }
       case 'cell':
-        spellTargetState = { spellId: id, stage: 'cell' };
+        spellTargetState = { spellId: id, stage: 'cell', full: Spells.isComplete(s, id) };
         log('Válassz egy mezőt a tábláról (vidd az egeret fölé, hogy lásd a hatást).');
         renderAll();
         break;
@@ -695,15 +722,25 @@ const UI = (() => {
       return;
     }
     describeSpellEffect(res);
+    const bonusAvailable = !!(res.effect && res.effect.bonusMoveAvailable);
     spellTargetState = null;
     processTurnOutcome(res.turnOutcome);
+    if (bonusAvailable && TurnManager.getPhase() === 'playing') {
+      spellTargetState = { spellId: 'blink', stage: 'monster', bonus: true };
+      log('Teljes BLINK! Válassz egy MÁSODIK ellenfelet is, akit ingyen áthelyezel.', 'important');
+      renderAll();
+    }
   }
 
   function describeSpellEffect(res) {
     const e = res.effect;
     if (e.healed !== undefined) log(`Gyógyítás: +${e.healed} HP.`, 'good');
     if (e.shield !== undefined) log(`Ward aktiválva: a következő ellenségtámadásból ${e.shield} sebzést elnyel.`, 'good');
-    if (e.letter) log(`Betűidézés: a legközelebbi feltöltéskor ${e.letter} betűt kapsz.`, 'good');
+    if (e.letters) {
+      log(e.letters.length > 1
+        ? `Betűidézés: a következő két feltöltéskor ${e.letters.join(' és ')} betűt kapsz.`
+        : `Betűidézés: a legközelebbi feltöltéskor ${e.letters[0]} betűt kapsz.`, 'good');
+    }
     if (e.to) {
       if (e.words) {
         log(`Blink: az ellenfél áthelyezve, és "${e.words.join('", "')}" szót alkotott!`, 'good');
@@ -727,7 +764,7 @@ const UI = (() => {
         : 'Cleanse: nem volt mit eltávolítani ezen a területen.', 'good');
     }
     if (e.hit && !e.to) {
-      log(`Fire: ${e.hit.length} ellenfél megsebződött a 3x3-as területen.`, 'good');
+      log(`Fire: ${e.hit.length} ellenfél megsebződött a ${e.full ? '4x4' : '3x3'}-as területen.`, 'good');
       for (const m of e.killed) log(`${m.name} (${m.letter}) elpusztult! +${m.xp} XP`, 'good');
     }
   }

@@ -40,39 +40,37 @@ const LetterBag = (() => {
     return LETTERS[LETTERS.length - 1];
   }
 
-  // requestedLetter: set by the Letter Call spell; consumed by the next draw.
-  let requestedLetter = null;
+  // requestedLetters: a queue set by the Letter Call spell (NEED); each
+  // queued letter is consumed, in order, by the next draws. A full NEED cast
+  // queues two letters instead of one (per feedback).
+  let requestedLetters = [];
 
   function requestLetter(letter) {
-    requestedLetter = letter.toUpperCase();
+    requestedLetters.push(letter.toUpperCase());
   }
 
   function hasRequest() {
-    return !!requestedLetter;
+    return requestedLetters.length > 0;
   }
 
   function clearRequest() {
-    requestedLetter = null;
+    requestedLetters = [];
   }
 
   // Draws exactly one letter. Does not check inventory space - caller's job.
   function draw() {
-    if (requestedLetter) {
-      const l = requestedLetter;
-      requestedLetter = null;
-      return l;
-    }
+    if (requestedLetters.length > 0) return requestedLetters.shift();
     return weightedRandomLetter();
   }
 
   // TEMPORARY (debug Back/Forward): full state in/out for snapshotting.
   function exportState() {
-    return { luckCharges, requestedLetter };
+    return { luckCharges, requestedLetters: requestedLetters.slice() };
   }
 
   function importState(data) {
     luckCharges = data.luckCharges;
-    requestedLetter = data.requestedLetter;
+    requestedLetters = (data.requestedLetters || []).slice();
   }
 
   return {

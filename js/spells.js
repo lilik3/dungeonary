@@ -143,12 +143,65 @@ const Spells = (() => {
     return { ok: true, letter: creditLetter, fedCount: fedCount(state, id), total: def.totalLetters, castable: isCastable(state, id) };
   }
 
+  // Shared Blink movement logic, reused both by the main cast and by the
+  // free bonus move a fully-spelled BLINK grants (see castBonusMove).
+  // Ignores the monster's own current cell while scanning for neighbor
+  // letters - it's vacating that spot as part of this very move, so it must
+  // not count as a letter still sitting there (per feedback bug).
+  function performBlinkMove(monsterId, r, c) {
+    const m = Board.getMonster(monsterId);
+    if (!m || !m.alive) return { ok: false, reason: 'invalid-target' };
+    if (!Board.inBounds(r, c) || !Board.cellIsEmpty(r, c)) return { ok: false, reason: 'invalid-cell' };
+
+    const origin = { r: m.r, c: m.c };
+    const candidates = ['H', 'V'].map(dir => Board.wordCandidateAt(r, c, m.letter, dir, origin));
+    const extended = candidates.filter(cand => cand.cells.length >= 2);
+    const isolated = extended.length === 0;
+    let words;
+    if (!isolated) {
+      const validWords = extended.filter(cand => Dictionary.isValidWord(cand.word));
+      if (validWords.length === 0) {
+        return { ok: false, reason: 'invalid-word', words: extended.map(cand => cand.word) };
+      }
+      words = validWords.map(cand => cand.word);
+    }
+
+    Board.moveMonster(monsterId, r, c);
+
+    let hit = [], killed = [];
+    if (!isolated) {
+      const extendedValid = extended.filter(cand => Dictionary.isValidWord(cand.word));
+      const touchedCells = extendedValid.flatMap(cand => cand.cells);
+      ({ hit, killed } = Combat.resolveMonstersInCells(touchedCells));
+    }
+
+    // Landing directly on a trap or reward field triggers it, same as a
+    // player-placed letter would.
+    const trapDamage = Board.triggerTrapsFor([[r, c]]).length * 2;
+    const rewards = Board.triggerRewardsFor([[r, c]]);
+    if (trapDamage > 0 && m.alive) {
+      m.hp -= trapDamage;
+      if (!hit.includes(m)) hit.push(m);
+      if (m.hp <= 0) {
+        Board.killMonster(m.id);
+        killed.push(m);
+      }
+    }
+
+    return { ok: true, effect: { monster: m, to: [r, c], words, hit, killed, rewards, trapDamage } };
+  }
+
   function cast(id, state, args) {
     const def = getDef(id);
     if (!def) return { ok: false, reason: 'unknown-spell' };
     if (!state.unlockedSpells.has(id)) return { ok: false, reason: 'locked' };
     if (state.spellUsedThisTurn[id]) return { ok: false, reason: 'already-used-this-turn' };
     if (!isCastable(state, id)) return { ok: false, reason: 'not-charged' };
+
+    // Spelling out the whole word (not just the minCast threshold) makes the
+    // spell noticeably stronger (per feedback) - captured here, before the
+    // switch resets spellFed for the turn.
+    const fullyFed = isComplete(state, id);
 
     let effect = {};
     switch (id) {
@@ -158,76 +211,44 @@ const Spells = (() => {
         // word, and every monster that word touches (including the one you
         // just moved) takes damage, same as a normal word play. A fully
         // isolated destination (no neighbors at all) just relocates the
-        // monster for free. Either way, landing on a trap hurts the moved
-        // monster too (shoving an enemy into a hazard), independent of
-        // whether a word formed.
+        // monster for free. A fully-spelled BLINK grants a second, free
+        // monster move right after this one (per feedback).
         const { monsterId, r, c } = args;
-        const m = Board.getMonster(monsterId);
-        if (!m || !m.alive) return { ok: false, reason: 'invalid-target' };
-        if (!Board.inBounds(r, c) || !Board.cellIsEmpty(r, c)) return { ok: false, reason: 'invalid-cell' };
-
-        // Ignore the monster's own current cell while scanning for neighbor
-        // letters - it's vacating that spot as part of this very move, so it
-        // must not count as a letter still sitting there (per feedback bug).
-        const origin = { r: m.r, c: m.c };
-        const candidates = ['H', 'V'].map(dir => Board.wordCandidateAt(r, c, m.letter, dir, origin));
-        const extended = candidates.filter(cand => cand.cells.length >= 2);
-        const isolated = extended.length === 0;
-        let words;
-        if (!isolated) {
-          const validWords = extended.filter(cand => Dictionary.isValidWord(cand.word));
-          if (validWords.length === 0) {
-            return { ok: false, reason: 'invalid-word', words: extended.map(cand => cand.word) };
-          }
-          words = validWords.map(cand => cand.word);
-        }
-
-        Board.moveMonster(monsterId, r, c);
-
-        let hit = [], killed = [];
-        if (!isolated) {
-          const extendedValid = extended.filter(cand => Dictionary.isValidWord(cand.word));
-          const touchedCells = extendedValid.flatMap(cand => cand.cells);
-          ({ hit, killed } = Combat.resolveMonstersInCells(touchedCells));
-        }
-
-        // Landing directly on a trap or reward field triggers it, same as a
-        // player-placed letter would.
-        const trapDamage = Board.triggerTrapsFor([[r, c]]).length * 2;
-        const rewards = Board.triggerRewardsFor([[r, c]]);
-        if (trapDamage > 0 && m.alive) {
-          m.hp -= trapDamage;
-          if (!hit.includes(m)) hit.push(m);
-          if (m.hp <= 0) {
-            Board.killMonster(m.id);
-            killed.push(m);
-          }
-        }
-
-        effect = { monster: m, to: [r, c], words, hit, killed, rewards, trapDamage };
+        const result = performBlinkMove(monsterId, r, c);
+        if (!result.ok) return result;
+        effect = { ...result.effect, bonusMoveAvailable: fullyFed };
         break;
       }
       case 'heal': {
+        // A fully-spelled AID heals a bit more (per feedback).
+        const amount = fullyFed ? 5 : 4;
         const before = state.hp;
-        state.hp = Math.min(state.maxHp, state.hp + 4);
-        effect = { healed: state.hp - before };
+        state.hp = Math.min(state.maxHp, state.hp + amount);
+        effect = { healed: state.hp - before, amount };
         break;
       }
       case 'lettercall': {
-        const { letter } = args;
-        if (!letter || !/^[A-Z]$/.test(letter)) return { ok: false, reason: 'invalid-letter' };
-        LetterBag.requestLetter(letter);
-        effect = { letter };
+        // A fully-spelled NEED queues two requested letters instead of one
+        // (per feedback) - args.letters takes priority if given.
+        const letters = Array.isArray(args.letters) ? args.letters : (args.letter ? [args.letter] : []);
+        if (letters.length === 0 || !letters.every(l => /^[A-Z]$/.test(l))) {
+          return { ok: false, reason: 'invalid-letter' };
+        }
+        for (const l of letters) LetterBag.requestLetter(l);
+        effect = { letters };
         break;
       }
       case 'fire': {
         // Fire doesn't place a letter anywhere, so it can't trigger reward
-        // fields - only direct placement does (per feedback).
+        // fields - only direct placement does (per feedback). A
+        // fully-spelled FIRE burns a 4x4 area instead of 3x3 (per feedback).
         const { r, c } = args;
+        const rMax = fullyFed ? r + 2 : r + 1;
+        const cMax = fullyFed ? c + 2 : c + 1;
         const hit = [];
         const killed = [];
-        for (let rr = r - 1; rr <= r + 1; rr++) {
-          for (let cc = c - 1; cc <= c + 1; cc++) {
+        for (let rr = r - 1; rr <= rMax; rr++) {
+          for (let cc = c - 1; cc <= cMax; cc++) {
             if (!Board.inBounds(rr, cc)) continue;
             const m = Board.getLivingMonsterAt(rr, cc);
             if (m) {
@@ -240,21 +261,31 @@ const Spells = (() => {
             }
           }
         }
-        effect = { hit, killed, rewards: [], center: [r, c] };
+        effect = { hit, killed, rewards: [], center: [r, c], full: fullyFed };
         break;
       }
       case 'ward': {
-        state.wardShield = 4;
-        effect = { shield: 4 };
+        // A fully-spelled WARD absorbs more (per feedback).
+        const shield = fullyFed ? 7 : 4;
+        state.wardShield = shield;
+        effect = { shield };
         break;
       }
       case 'cleanse': {
-        // Per feedback: a plus-shaped (5-cell) AOE instead of a single tile.
+        // Per feedback: a plus-shaped (5-cell) AOE normally; a fully-spelled
+        // CLEAN clears a full 3x3 square instead (per feedback).
         const { r, c } = args;
         if (!Board.inBounds(r, c)) return { ok: false, reason: 'invalid-cell' };
-        const area = [[r, c], [r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]
-          .filter(([rr, cc]) => Board.inBounds(rr, cc));
-        const cleared = area.filter(([rr, cc]) => Board.removeWordAt(rr, cc));
+        const area = fullyFed
+          ? (() => {
+              const cells = [];
+              for (let rr = r - 1; rr <= r + 1; rr++) {
+                for (let cc = c - 1; cc <= c + 1; cc++) cells.push([rr, cc]);
+              }
+              return cells;
+            })()
+          : [[r, c], [r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]];
+        const cleared = area.filter(([rr, cc]) => Board.inBounds(rr, cc) && Board.removeWordAt(rr, cc));
         effect = { cleared, center: [r, c] };
         break;
       }
@@ -265,12 +296,20 @@ const Spells = (() => {
     return { ok: true, effect };
   }
 
+  // The free second move a fully-spelled BLINK grants - no charge is spent,
+  // the spell is already marked used for the turn by the main cast.
+  function castBonusMove(id, args) {
+    if (id !== 'blink') return { ok: false, reason: 'unsupported' };
+    const { monsterId, r, c } = args;
+    return performBlinkMove(monsterId, r, c);
+  }
+
   function resetTurnUsage(state) {
     for (const def of DEFS) state.spellUsedThisTurn[def.id] = false;
   }
 
   return {
     DEFS, getDef, fedCount, remainingFor, neededLetters, isComplete, isCastable,
-    canFeedLetter, slotStates, feedLetter, cast, resetTurnUsage
+    canFeedLetter, slotStates, feedLetter, cast, castBonusMove, resetTurnUsage
   };
 })();
