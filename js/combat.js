@@ -3,8 +3,8 @@
 // tile), the rest are freshly filled from the player's rack. Any LIVING
 // monster whose cell lies on that line takes 1 damage - no letter-identity
 // matching needed, since the monster's own letter is necessarily part of the
-// word by construction. New tiles stay on the board only if the word killed
-// at least one monster (GDD v0.4 "stays if it killed, else vanishes" rule).
+// word by construction. Per feedback, new tiles now always stay on the board
+// once a valid word is played, whether or not it killed anything.
 const Combat = (() => {
   // Deals 1 damage to every distinct living monster whose cell appears in
   // `cells` ([{r,c}, ...]), handling kills and their linked rewards.
@@ -64,16 +64,13 @@ const Combat = (() => {
     // Letter-match-by-position damage: every living monster the line passes through.
     const { hit, killed, rewards } = resolveMonstersInCells(placementCells);
 
-    const tilesKept = killed.length > 0;
-    if (tilesKept) {
-      Board.writeLetters(newCells.map(p => ({ r: p.r, c: p.c, letter: p.letter })));
-    }
+    Board.writeLetters(newCells.map(p => ({ r: p.r, c: p.c, letter: p.letter })));
 
     Inventory.consumeTokens(tokenIds);
 
     return {
       ok: true, word, hit, killed, rewards, trapDamage, trapCells: trapHits,
-      tilesKept, newLetterCount: newCells.length
+      tilesKept: true, newLetterCount: newCells.length
     };
   }
 

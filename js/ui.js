@@ -690,11 +690,7 @@ const UI = (() => {
     if (res.trapDamage > 0) {
       log(`Csapdába léptél! -${res.trapDamage} HP.`, 'danger');
     }
-    if (res.hit.length > 0 && !res.tilesKept) {
-      log('A szó nem ölt meg senkit, az új betűid eltűntek.');
-    } else if (res.tilesKept) {
-      log('Az új betűid a táblán maradnak.');
-    }
+    log('Az új betűid a táblán maradnak.');
   }
 
   function processTurnOutcome(outcome) {
