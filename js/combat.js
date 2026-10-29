@@ -60,6 +60,18 @@ const Combat = (() => {
       return { ok: false, reason: 'invalid-word', word };
     }
 
+    // Scrabble rule: every new letter that touches existing letters in the
+    // OTHER direction must also form a valid word there, not just along the
+    // line being played.
+    const mainDir = placementCells[0].r === placementCells[1].r ? 'H' : 'V';
+    const crossDir = mainDir === 'H' ? 'V' : 'H';
+    for (const p of newCells) {
+      const cross = Board.wordCandidateAt(p.r, p.c, p.letter, crossDir);
+      if (cross.cells.length >= 2 && !Dictionary.isValidWord(cross.word)) {
+        return { ok: false, reason: 'invalid-cross-word', word: cross.word };
+      }
+    }
+
     // Traps and reward fields fire immediately when a new letter lands on
     // them, regardless of the combat outcome below.
     const newCellCoords = newCells.map(p => [p.r, p.c]);

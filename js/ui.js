@@ -104,8 +104,21 @@ const UI = (() => {
     return [{ ...built, dir: axis }];
   }
 
+  // Scrabble rule: a newly-placed letter that touches existing letters in
+  // the perpendicular direction must also form a valid word there. Returns
+  // the first offending cross word, or null if the candidate is clean.
+  function invalidCrossWordFor(candidate) {
+    const perpDir = candidate.dir === 'H' ? 'V' : 'H';
+    for (const cell of candidate.cells) {
+      if (cell.tokenId == null) continue; // already on the board - validated when it was placed
+      const cross = Board.wordCandidateAt(cell.r, cell.c, cell.letter, perpDir);
+      if (cross.cells.length >= 2 && !Dictionary.isValidWord(cross.word)) return cross.word;
+    }
+    return null;
+  }
+
   function getConfirmableCandidates() {
-    return getCandidates().filter(c => Dictionary.isValidWord(c.word));
+    return getCandidates().filter(c => Dictionary.isValidWord(c.word) && invalidCrossWordFor(c) == null);
   }
 
   function wouldAcceptDrop(r, c) {
@@ -472,7 +485,13 @@ const UI = (() => {
     if (confirmable.length > 0) {
       hint.textContent = 'Érvényes szó! Erősítsd meg, húzz még betűt, vagy vonj vissza egyet a táblán rákattintva.';
     } else if (allCandidates.length > 0) {
-      hint.textContent = `"${allCandidates[0].word}" nem szerepel a szótárban - húzz még betűt, vagy vond vissza.`;
+      const mainValid = allCandidates.find(c => Dictionary.isValidWord(c.word));
+      const badCross = mainValid ? invalidCrossWordFor(mainValid) : null;
+      if (badCross) {
+        hint.textContent = `"${mainValid.word}" jó szó, de keresztirányban "${badCross}" nem az - húzz máshova, vagy vond vissza.`;
+      } else {
+        hint.textContent = `"${allCandidates[0].word}" nem szerepel a szótárban - húzz még betűt, vagy vond vissza.`;
+      }
     } else {
       hint.textContent = 'Még nincs kész szó - húzz melléjük egy betűt, vagy egy szörny mellé/fölé, hogy összekösd velük.';
     }
@@ -701,7 +720,11 @@ const UI = (() => {
   function confirmWord(candidate) {
     const res = TurnManager.submitWord(candidate.cells);
     if (!res.ok) {
-      log(`Nem sikerült lerakni: ${res.reason}`, 'danger');
+      if (res.reason === 'invalid-cross-word') {
+        log(`"${res.word}" nem érvényes szó a keresztirányban.`, 'danger');
+      } else {
+        log(`Nem sikerült lerakni: ${res.reason}`, 'danger');
+      }
       return;
     }
     describeWordResult(res);
