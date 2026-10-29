@@ -248,7 +248,7 @@ body {
   color: #0e1f2d;
   font-weight: 800;
   font-size: 26px;
-  cursor: pointer;
+  cursor: grab;
   box-shadow: 0 0 0 2px #3c6f9c inset;
 }
 .cell.monster-elite { box-shadow: 0 0 0 2px #9b59b6 inset; }

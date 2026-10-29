@@ -200,7 +200,8 @@ const UI = (() => {
         if (pending) {
           div.classList.add('pending-tile', 'selectable');
           div.textContent = pending.letter;
-          div.title = 'Kattints a visszavonáshoz';
+          div.title = 'Húzd át máshova vagy vissza a betűsorra, vagy kattints a visszavonáshoz';
+          div.addEventListener('mousedown', (e) => handlePendingTileMouseDown(e, pending));
           if (pending.isJoker) div.classList.add('from-joker');
         } else if (m) {
           div.classList.add('has-monster');
@@ -574,16 +575,13 @@ const UI = (() => {
     rackOrder.splice(targetIdx === -1 ? rackOrder.length : targetIdx, 0, draggedTokenId);
   }
 
-  function handleTileMouseDown(e, tokenId, letter) {
-    if (e.button !== 0) return;
-    const phase = TurnManager.getPhase();
-    if (phase !== 'playing' || spellTargetState) return;
-    if (reservedTokenIds().has(tokenId)) return;
-    e.preventDefault();
-
-    const isJoker = letter === LetterBag.JOKER_LETTER;
-    dragData = { tokenId, letter };
-    showGhost(e.clientX, e.clientY, isJoker ? '★' : letter);
+  // Shared drag loop, used both for picking a letter up from the rack and
+  // for picking an already-placed (but not yet confirmed) board tile back
+  // up (per feedback: an unconfirmed tile shouldn't be locked in place - it
+  // can be dragged to another cell, onto a spell slot, or back to the rack).
+  function startDrag(tokenId, letter, isJoker, clientX, clientY) {
+    dragData = { tokenId, letter, isJoker };
+    showGhost(clientX, clientY, isJoker ? '★' : letter);
 
     const onMove = (ev) => {
       moveGhost(ev.clientX, ev.clientY);
@@ -612,11 +610,36 @@ const UI = (() => {
       } else if (target && target.type === 'rackTile') {
         reorderRack(tokenId, target.tokenId);
       }
+      // Anything else (empty rack area, or released off any valid target)
+      // simply isn't re-placed - already-removed pending tiles just stay
+      // back in the rack, which is exactly "drop it back on the rack".
       dragData = null;
       renderAll();
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
+  }
+
+  function handleTileMouseDown(e, tokenId, letter) {
+    if (e.button !== 0) return;
+    const phase = TurnManager.getPhase();
+    if (phase !== 'playing' || spellTargetState) return;
+    if (reservedTokenIds().has(tokenId)) return;
+    e.preventDefault();
+    startDrag(tokenId, letter, letter === LetterBag.JOKER_LETTER, e.clientX, e.clientY);
+  }
+
+  // Picking an unconfirmed board tile back up: pulls it out of pendingDrops
+  // immediately (so its old cell is free again and it reads as "in hand"),
+  // then runs the exact same drag loop a rack tile would.
+  function handlePendingTileMouseDown(e, pending) {
+    if (e.button !== 0) return;
+    const phase = TurnManager.getPhase();
+    if (phase !== 'playing' || spellTargetState) return;
+    e.preventDefault();
+    pendingDrops = pendingDrops.filter(p => p !== pending);
+    renderAll();
+    startDrag(pending.tokenId, pending.letter, !!pending.isJoker, e.clientX, e.clientY);
   }
 
   function tryDrop(r, c) {
@@ -625,7 +648,7 @@ const UI = (() => {
       log('Ide nem helyezhető el betű.', 'danger');
       return;
     }
-    const { tokenId, letter } = dragData;
+    const { tokenId, letter, isJoker } = dragData;
     if (letter === LetterBag.JOKER_LETTER) {
       showLetterPicker('A Joker milyen betű legyen?', (chosen) => {
         pendingDrops.push({ r, c, letter: chosen, tokenId, isJoker: true });
@@ -633,7 +656,7 @@ const UI = (() => {
       });
       return;
     }
-    pendingDrops.push({ r, c, letter, tokenId });
+    pendingDrops.push({ r, c, letter, tokenId, isJoker });
   }
 
   function trySpellSlotDrop(spellId) {
