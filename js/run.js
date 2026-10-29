@@ -115,6 +115,7 @@ const Run = (() => {
   const LOCKED_SPELL_ORDER = ['lettercall', 'fire', 'ward', 'cleanse'];
 
   function nextLockedSpell() {
+    if (!Spells.ORIGINAL_SYSTEM_ENABLED) return null;
     return LOCKED_SPELL_ORDER.find(id => !state.unlockedSpells.has(id)) || null;
   }
 

@@ -8,6 +8,12 @@
 // them. Casting consumes whatever's filled and can happen at most once per
 // turn (resets at End Turn); unused progress carries over between turns.
 const Spells = (() => {
+  // TEMPORARY: this whole letter-feed spell system is parked here, unchanged,
+  // while a new skill-tree-based spell system is designed from scratch.
+  // Flip this back to true (and the matching checks in run.js/ui.js) to
+  // restore it exactly as it was - nothing below was deleted.
+  const ORIGINAL_SYSTEM_ENABLED = false;
+
   function requiredMultiset(word) {
     const m = {};
     for (const ch of word) m[ch] = (m[ch] || 0) + 1;
@@ -309,6 +315,7 @@ const Spells = (() => {
   }
 
   return {
+    ORIGINAL_SYSTEM_ENABLED,
     DEFS, getDef, fedCount, remainingFor, neededLetters, isComplete, isCastable,
     canFeedLetter, slotStates, feedLetter, cast, castBonusMove, resetTurnUsage
   };

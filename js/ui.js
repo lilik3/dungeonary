@@ -130,6 +130,11 @@ const UI = (() => {
   // as unlocked, instead of waiting for the normal level-up unlock order.
   function renderSpellUnlockPanel() {
     const panel = $('#spell-unlock-panel');
+    if (!Spells.ORIGINAL_SYSTEM_ENABLED) {
+      panel.classList.add('hidden');
+      panel.innerHTML = '';
+      return;
+    }
     const s = Run.getState();
     if (!s || !spellUnlockPanelOpen) {
       panel.classList.add('hidden');
@@ -382,6 +387,7 @@ const UI = (() => {
   function renderSpellPanel() {
     const panel = $('#spell-panel');
     panel.innerHTML = '';
+    if (!Spells.ORIGINAL_SYSTEM_ENABLED) return; // parked - see spells.js
     const s = Run.getState();
     if (!s) return;
     const phase = TurnManager.getPhase();
@@ -871,10 +877,14 @@ const UI = (() => {
       }
     });
 
-    $('#btn-spell-unlocks').addEventListener('click', () => {
-      spellUnlockPanelOpen = !spellUnlockPanelOpen;
-      renderSpellUnlockPanel();
-    });
+    if (Spells.ORIGINAL_SYSTEM_ENABLED) {
+      $('#btn-spell-unlocks').addEventListener('click', () => {
+        spellUnlockPanelOpen = !spellUnlockPanelOpen;
+        renderSpellUnlockPanel();
+      });
+    } else {
+      $('.hud-spelltoggle').classList.add('hidden');
+    }
 
     $('#btn-sort-rack').addEventListener('click', () => sortRackAlphabetically());
 
