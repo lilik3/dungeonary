@@ -34,9 +34,7 @@
       </div>
       <div class="hud-block hud-gold">💰 <span id="gold-text">0</span></div>
       <div class="hud-block hud-room">Szoba <span><span id="room-text">1</span>/<span id="room-total">6</span></span></div>
-      <div class="hud-block hud-skilltree">
-        <button id="btn-skill-tree" class="btn btn-primary">🌳 Skill Tree (<span id="skilltree-points-hud">0</span>)</button>
-      </div>
+      <div class="hud-block hud-skilltree">🌳 Tudáspont: <span id="skilltree-points-hud">0</span></div>
       <label class="hud-block hud-godmode" title="Ideiglenes teszt-kapcsoló: ameddig be van kapcsolva, nem fogyhat el az életerőd.">
         <input type="checkbox" id="chk-god-mode"> TESZT: Végtelen HP
       </label>
@@ -59,6 +57,7 @@
       </div>
 
       <aside id="side-panel">
+        <h3 id="spell-panel-title" class="hidden">Skill Tree</h3>
         <div id="spell-panel"></div>
 
         <div id="placement-controls" class="hidden">
@@ -103,16 +102,6 @@
       <button id="btn-buy-capacity" class="btn btn-primary">Kapacitás +1</button>
       <div id="trader-skilltree-gold"></div>
       <button id="btn-continue" class="btn btn-big">Tovább a következő szobába</button>
-    </div>
-  </section>
-
-  <!-- SKILL TREE MODAL -->
-  <section id="screen-skilltree" class="screen modal hidden">
-    <div class="modal-card skilltree-card">
-      <h2>Skill Tree</h2>
-      <p id="skilltree-points-text">Tudáspont: 0</p>
-      <div id="skilltree-grid"></div>
-      <button id="btn-close-skilltree" class="btn btn-primary btn-big">Bezár</button>
     </div>
   </section>
 
