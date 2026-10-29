@@ -236,6 +236,50 @@ const Board = (() => {
     return { cells, word: cells.map(x => x.letter).join('') };
   }
 
+  // Every distinct word (length 2+) formed by a whole batch of new letters
+  // placed at once, in both directions - not just the single line the player
+  // dragged them along. Lets a turn's placement branch into an intersecting
+  // word (e.g. dropping a letter that both extends "L-F" downward into "ELF"
+  // and, together with another new letter, turns a neighboring "RF" into
+  // "ARF") and have every resulting word validated and played together.
+  // `newLetters`: [{r, c, letter}]. Doesn't mutate the board.
+  function allWordsForNewLetters(newLetters) {
+    const overlay = new Map();
+    for (const { r, c, letter } of newLetters) overlay.set(`${r},${c}`, letter);
+    const letterAt = (r, c) => {
+      const key = `${r},${c}`;
+      return overlay.has(key) ? overlay.get(key) : getCellLetter(r, c);
+    };
+    function lineThrough(r, c, dir) {
+      let lo = dir === 'H' ? c : r;
+      let hi = lo;
+      const at = (pos) => (dir === 'H' ? letterAt(r, pos) : letterAt(pos, c));
+      while (lo - 1 >= 0 && at(lo - 1) != null) lo--;
+      while (hi + 1 <= SIZE - 1 && at(hi + 1) != null) hi++;
+      const cells = [];
+      for (let pos = lo; pos <= hi; pos++) {
+        const rr = dir === 'H' ? r : pos;
+        const cc = dir === 'H' ? pos : c;
+        cells.push({ r: rr, c: cc, letter: at(pos) });
+      }
+      return { dir, cells, word: cells.map(x => x.letter).join('') };
+    }
+
+    const seen = new Set();
+    const words = [];
+    for (const { r, c } of newLetters) {
+      for (const dir of ['H', 'V']) {
+        const line = lineThrough(r, c, dir);
+        if (line.cells.length < 2) continue;
+        const key = `${dir}:${line.cells[0].r},${line.cells[0].c}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        words.push(line);
+      }
+    }
+    return words;
+  }
+
   // --- Committing a resolved word ---
 
   // Traps fire the instant a new letter physically lands on them, regardless
@@ -323,7 +367,7 @@ const Board = (() => {
 
   return {
     SIZE, generateRoom, getCell, getCellLetter, getLivingMonsterAt, getMonsters,
-    getLivingMonsters, getMonster, roomCleared, computeLineCells, maxLineLength, wordCandidateAt,
+    getLivingMonsters, getMonster, roomCleared, computeLineCells, maxLineLength, wordCandidateAt, allWordsForNewLetters,
     triggerTrapsFor, triggerRewardsFor, writeLetters, removeWordAt, resetTrapTurnFlags, moveMonster, killMonster,
     cellIsEmpty, getState, inBounds, exportState, importState
   };

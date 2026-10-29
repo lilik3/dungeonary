@@ -28,14 +28,13 @@ const Combat = (() => {
     return { hit, killed };
   }
 
-  // placementCells: [{r, c, letter, tokenId}] in order along the line.
-  // tokenId is null/undefined for cells that already had a letter on the board.
-  function resolveWordSubmission(placementCells) {
-    if (!placementCells || placementCells.length < 2) {
-      return { ok: false, reason: 'too-short' };
-    }
-    const newCells = placementCells.filter(p => p.tokenId != null);
-    if (newCells.length === 0) {
+  // newCells: [{r, c, letter, tokenId, isJoker?}] - every letter the player
+  // is placing this turn, not necessarily all on one line (per feedback: a
+  // single play can branch into an intersecting word too, Scrabble-style -
+  // every resulting word, main line or cross branch, is validated and played
+  // together as one atomic move).
+  function resolveWordSubmission(newCells) {
+    if (!newCells || newCells.length === 0) {
       return { ok: false, reason: 'no-new-letters' };
     }
 
@@ -55,20 +54,16 @@ const Combat = (() => {
       }
     }
 
-    const word = placementCells.map(p => p.letter).join('');
-    if (!Dictionary.isValidWord(word)) {
-      return { ok: false, reason: 'invalid-word', word };
+    // Every word (2+ letters, any direction) that touches at least one of
+    // the new letters - the line(s) being played, plus any cross word a new
+    // letter happens to complete. All of them must be real words.
+    const words = Board.allWordsForNewLetters(newCells.map(p => ({ r: p.r, c: p.c, letter: p.letter })));
+    if (words.length === 0) {
+      return { ok: false, reason: 'too-short' };
     }
-
-    // Scrabble rule: every new letter that touches existing letters in the
-    // OTHER direction must also form a valid word there, not just along the
-    // line being played.
-    const mainDir = placementCells[0].r === placementCells[1].r ? 'H' : 'V';
-    const crossDir = mainDir === 'H' ? 'V' : 'H';
-    for (const p of newCells) {
-      const cross = Board.wordCandidateAt(p.r, p.c, p.letter, crossDir);
-      if (cross.cells.length >= 2 && !Dictionary.isValidWord(cross.word)) {
-        return { ok: false, reason: 'invalid-cross-word', word: cross.word };
+    for (const w of words) {
+      if (!Dictionary.isValidWord(w.word)) {
+        return { ok: false, reason: 'invalid-word', word: w.word };
       }
     }
 
@@ -79,15 +74,27 @@ const Combat = (() => {
     const trapDamage = trapHits.length * 2;
     const rewards = Board.triggerRewardsFor(newCellCoords);
 
-    // Letter-match-by-position damage: every living monster the line passes through.
-    const { hit, killed } = resolveMonstersInCells(placementCells);
+    // Letter-match-by-position damage: every living monster any formed word
+    // passes through (deduped - a cell shared by two words only counts once).
+    const cellSeen = new Set();
+    const allCells = [];
+    for (const w of words) {
+      for (const cell of w.cells) {
+        const key = `${cell.r},${cell.c}`;
+        if (cellSeen.has(key)) continue;
+        cellSeen.add(key);
+        allCells.push(cell);
+      }
+    }
+    const { hit, killed } = resolveMonstersInCells(allCells);
 
     Board.writeLetters(newCells.map(p => ({ r: p.r, c: p.c, letter: p.letter, isJoker: p.isJoker })));
 
     Inventory.consumeTokens(tokenIds);
 
+    const wordList = words.map(w => w.word);
     return {
-      ok: true, word, hit, killed, rewards, trapDamage, trapCells: trapHits,
+      ok: true, words: wordList, word: wordList.join(' + '), hit, killed, rewards, trapDamage, trapCells: trapHits,
       tilesKept: true, newLetterCount: newCells.length
     };
   }

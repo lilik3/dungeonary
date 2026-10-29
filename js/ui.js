@@ -43,17 +43,6 @@ const UI = (() => {
     return pendingDrops.find(p => p.r === r && p.c === c) || null;
   }
 
-  // 'H' / 'V' once 2+ drops fix the line, 'ambiguous' for a single drop
-  // (direction not yet determined), 'invalid' if drops aren't colinear
-  // (shouldn't happen - drops are rejected before this can occur).
-  function axisOf(drops) {
-    if (drops.length === 0) return null;
-    if (drops.length === 1) return 'ambiguous';
-    if (drops.every(p => p.r === drops[0].r)) return 'H';
-    if (drops.every(p => p.c === drops[0].c)) return 'V';
-    return 'invalid';
-  }
-
   // Builds the maximal word through `drops` along `dir`: fills any gap
   // within the drops' own span using existing board letters (returns null if
   // a gap has neither a drop nor an existing letter - word isn't ready yet),
@@ -86,52 +75,43 @@ const UI = (() => {
     return { cells, word: cells.map(c => c.letter).join('') };
   }
 
-  // All straight-line word candidates the current drops could resolve to.
+  // Every straight-line word the current drops could resolve to, in EITHER
+  // direction, not just one fixed axis - a single turn's drops can branch
+  // (one new letter extending its own line down, another completing a
+  // crossing word with it), same as a real Scrabble play forming several
+  // words at once. Grouped by row (-> horizontal words) and by column
+  // (-> vertical words); a row/column with only one drop still produces a
+  // candidate if that drop bridges 2+ existing board letters there.
   function getCandidates() {
     if (pendingDrops.length === 0) return [];
-    const axis = axisOf(pendingDrops);
-    if (axis === 'invalid') return [];
-    if (axis === 'ambiguous') {
-      const out = [];
-      const h = buildCandidate('H', pendingDrops);
-      if (h && h.cells.length >= 2) out.push({ ...h, dir: 'H' });
-      const v = buildCandidate('V', pendingDrops);
-      if (v && v.cells.length >= 2) out.push({ ...v, dir: 'V' });
-      return out;
+    const rows = new Map();
+    const cols = new Map();
+    for (const p of pendingDrops) {
+      if (!rows.has(p.r)) rows.set(p.r, []);
+      rows.get(p.r).push(p);
+      if (!cols.has(p.c)) cols.set(p.c, []);
+      cols.get(p.c).push(p);
     }
-    const built = buildCandidate(axis, pendingDrops);
-    if (!built || built.cells.length < 2) return [];
-    return [{ ...built, dir: axis }];
-  }
-
-  // Scrabble rule: a newly-placed letter that touches existing letters in
-  // the perpendicular direction must also form a valid word there. Returns
-  // the first offending cross word, or null if the candidate is clean.
-  function invalidCrossWordFor(candidate) {
-    const perpDir = candidate.dir === 'H' ? 'V' : 'H';
-    for (const cell of candidate.cells) {
-      if (cell.tokenId == null) continue; // already on the board - validated when it was placed
-      const cross = Board.wordCandidateAt(cell.r, cell.c, cell.letter, perpDir);
-      if (cross.cells.length >= 2 && !Dictionary.isValidWord(cross.word)) return cross.word;
+    const out = [];
+    for (const drops of rows.values()) {
+      const built = buildCandidate('H', drops);
+      if (built && built.cells.length >= 2) out.push({ ...built, dir: 'H' });
     }
-    return null;
-  }
-
-  function getConfirmableCandidates() {
-    return getCandidates().filter(c => Dictionary.isValidWord(c.word) && invalidCrossWordFor(c) == null);
+    for (const drops of cols.values()) {
+      const built = buildCandidate('V', drops);
+      if (built && built.cells.length >= 2) out.push({ ...built, dir: 'V' });
+    }
+    return out;
   }
 
   function wouldAcceptDrop(r, c) {
     if (Board.getCellLetter(r, c) != null) return false;
     if (pendingDropAt(r, c)) return false;
-    if (pendingDrops.length > 0) {
-      const axis = axisOf(pendingDrops);
-      const first = pendingDrops[0];
-      if (axis === 'H') return r === first.r;
-      if (axis === 'V') return c === first.c;
-      if (axis === 'ambiguous') return r === first.r || c === first.c;
-    }
-    return true;
+    if (pendingDrops.length === 0) return true;
+    // Allowed anywhere that shares a row or column with an existing drop -
+    // lets the player branch off into a crossing word, not just extend one
+    // straight line.
+    return pendingDrops.some(p => p.r === r || p.c === c);
   }
 
   // ---------- RENDER ----------
@@ -479,34 +459,32 @@ const UI = (() => {
     }
     panel.classList.remove('hidden');
     const hint = $('#placement-hint');
-    const confirmable = getConfirmableCandidates();
     const allCandidates = getCandidates();
-
-    if (confirmable.length > 0) {
-      hint.textContent = 'Érvényes szó! Erősítsd meg, húzz még betűt, vagy vonj vissza egyet a táblán rákattintva.';
-    } else if (allCandidates.length > 0) {
-      const mainValid = allCandidates.find(c => Dictionary.isValidWord(c.word));
-      const badCross = mainValid ? invalidCrossWordFor(mainValid) : null;
-      if (badCross) {
-        hint.textContent = `"${mainValid.word}" jó szó, de keresztirányban "${badCross}" nem az - húzz máshova, vagy vond vissza.`;
-      } else {
-        hint.textContent = `"${allCandidates[0].word}" nem szerepel a szótárban - húzz még betűt, vagy vond vissza.`;
-      }
-    } else {
-      hint.textContent = 'Még nincs kész szó - húzz melléjük egy betűt, vagy egy szörny mellé/fölé, hogy összekösd velük.';
-    }
-
+    const invalid = allCandidates.filter(c => !Dictionary.isValidWord(c.word));
     const container = $('#confirm-options');
     container.innerHTML = '';
-    confirmable.forEach(cand => {
-      const btn = document.createElement('button');
-      btn.className = 'btn btn-primary';
-      btn.textContent = confirmable.length > 1
-        ? `Megerősítés (${cand.dir === 'H' ? 'vízszintes' : 'függőleges'}): ${cand.word}`
-        : `Megerősítés: ${cand.word}`;
-      btn.addEventListener('click', () => confirmWord(cand));
-      container.appendChild(btn);
-    });
+
+    if (allCandidates.length === 0) {
+      hint.textContent = 'Még nincs kész szó - húzz melléjük egy betűt, vagy egy szörny mellé/fölé, hogy összekösd velük.';
+      return;
+    }
+
+    if (invalid.length > 0) {
+      const words = invalid.map(c => `"${c.word}"`).join(', ');
+      hint.textContent = `${words} nem szerepel a szótárban - húzz még betűt, vagy vond vissza.`;
+      return;
+    }
+
+    const wordList = allCandidates.map(c => `"${c.word}"`).join(' + ');
+    hint.textContent = allCandidates.length > 1
+      ? `Érvényes szavak: ${wordList}! Erősítsd meg mindet egyszerre, húzz még betűt, vagy vonj vissza egyet a táblán rákattintva.`
+      : 'Érvényes szó! Erősítsd meg, húzz még betűt, vagy vonj vissza egyet a táblán rákattintva.';
+
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary';
+    btn.textContent = `Megerősítés: ${wordList}`;
+    btn.addEventListener('click', () => confirmWord());
+    container.appendChild(btn);
   }
 
   // Generic A-Z picker, reused by the Letter Call spell and by a Joker tile
@@ -717,11 +695,12 @@ const UI = (() => {
     }
   }
 
-  function confirmWord(candidate) {
-    const res = TurnManager.submitWord(candidate.cells);
+  function confirmWord() {
+    const newCells = pendingDrops.map(p => ({ r: p.r, c: p.c, letter: p.letter, tokenId: p.tokenId, isJoker: p.isJoker }));
+    const res = TurnManager.submitWord(newCells);
     if (!res.ok) {
-      if (res.reason === 'invalid-cross-word') {
-        log(`"${res.word}" nem érvényes szó a keresztirányban.`, 'danger');
+      if (res.reason === 'invalid-word') {
+        log(`"${res.word}" nem érvényes szó.`, 'danger');
       } else {
         log(`Nem sikerült lerakni: ${res.reason}`, 'danger');
       }
@@ -954,7 +933,8 @@ const UI = (() => {
   }
 
   function describeWordResult(res) {
-    log(`Kiraktad: "${res.word}" (${res.newLetterCount} új betűvel)`, 'important');
+    const wordLabel = res.words.length > 1 ? res.words.map(w => `"${w}"`).join(' és ') : `"${res.word}"`;
+    log(`Kiraktad: ${wordLabel} (${res.newLetterCount} új betűvel)`, 'important');
     for (const m of res.hit) {
       const died = !m.alive;
       log(`${m.emoji} ${m.name} (${m.letter}) ${died ? 'elpusztult!' : `sebződött (${m.hp}/${m.maxHp} HP maradt)`}`, died ? 'good' : null);

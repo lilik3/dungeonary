@@ -103,7 +103,7 @@ const TurnManager = (() => {
       state.hp = Math.max(0, state.hp - res.trapDamage);
     }
 
-    const bonusXp = wordLengthXp(res.word);
+    const bonusXp = res.words.reduce((sum, w) => sum + wordLengthXp(w), 0);
     const turnOutcome = checkImmediateOutcome({ rewards: res.rewards, killed: res.killed, bonusXp });
     return { ...res, turnOutcome };
   }
