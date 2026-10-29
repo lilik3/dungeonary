@@ -200,8 +200,13 @@ const UI = (() => {
         if (pending) {
           div.classList.add('pending-tile', 'selectable');
           div.textContent = pending.letter;
-          div.title = 'Húzd át máshova vagy vissza a betűsorra, vagy kattints a visszavonáshoz';
+          div.title = 'Húzd át máshova vagy vissza a betűsorra, vagy jobb klikk a visszavonáshoz';
           div.addEventListener('mousedown', (e) => handlePendingTileMouseDown(e, pending));
+          div.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            pendingDrops = pendingDrops.filter(p => p !== pending);
+            renderAll();
+          });
           if (pending.isJoker) div.classList.add('from-joker');
         } else if (m) {
           div.classList.add('has-monster');
