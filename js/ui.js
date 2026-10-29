@@ -16,6 +16,7 @@ const UI = (() => {
   let currentPerkOptions = [];
   let rackOrder = []; // token ids in the player's own chosen display order (drag to reorder)
   let spellUnlockPanelOpen = false; // TEMPORARY test menu: manual spell unlock toggles
+  let selectedSkillNodeId = null; // which skill-tree tile's detail popup is open
 
   const $ = sel => document.querySelector(sel);
 
@@ -449,17 +450,21 @@ const UI = (() => {
     }
   }
 
-  // New skill-tree system's always-visible panel (see skillTree.js) - per
-  // feedback, nothing here should be hidden behind a button/modal: every
-  // node (owned or not) sits beside the board with its description and
-  // current activation status spelled out in plain text, not a tooltip.
-  // Feed nodes reuse the original system's own slot/Cast plumbing unchanged
-  // (handleCastClick, trySpellSlotDrop) keyed by the node's underlying
-  // spellId - only ownership (SkillTree.isOwned) and presentation are new.
+  // New skill-tree system's always-visible panel (see skillTree.js) - a
+  // compact icon grid beside the board (per feedback: small tiles with
+  // minimal info + a ready/unlockable marker; click a tile for the rest of
+  // the info in a detail popup). Feed nodes reuse the original system's own
+  // slot/Cast plumbing unchanged (handleCastClick, trySpellSlotDrop) keyed
+  // by the node's underlying spellId - only ownership and presentation
+  // (SkillTree.isOwned) are new.
   function renderNodeActivationPanel(panel) {
     const s = Run.getState();
     const title = $('#spell-panel-title');
-    if (!s) { title.classList.add('hidden'); return; }
+    if (!s) {
+      title.classList.add('hidden');
+      $('#skilltree-detail').classList.add('hidden');
+      return;
+    }
     title.classList.remove('hidden');
 
     const groups = [{ title: 'Mag', defs: [SkillTree.getDef('core')] }];
@@ -467,23 +472,81 @@ const UI = (() => {
       groups.push({ title: b.title, defs: SkillTree.getAllDefs().filter(d => d.branch === b.key) });
     }
     const goldOnly = SkillTree.getAllDefs().filter(d => d.branch === null && d.id !== 'core');
-    if (goldOnly.length > 0) groups.push({ title: 'Csak arannyal (kereskedőnél)', defs: goldOnly });
+    if (goldOnly.length > 0) groups.push({ title: 'Csak arannyal', defs: goldOnly });
 
     for (const group of groups) {
       const heading = document.createElement('div');
       heading.className = 'skilltree-branch-title';
       heading.textContent = group.title;
       panel.appendChild(heading);
-      for (const def of group.defs) panel.appendChild(buildTreeNodeCard(def, s));
+      for (const def of group.defs) panel.appendChild(buildSkillTile(def, s));
     }
+
+    renderSkillDetail(s);
   }
 
-  function buildTreeNodeCard(def, s) {
+  // Compact tile: icon + (for feed nodes) a tiny fed-count readout, and a
+  // small corner badge - ✓ once it's actually usable, + once it's
+  // affordable to unlock, 🔒 otherwise. Click toggles the detail popup.
+  function buildSkillTile(def, s) {
     const owned = SkillTree.isOwned(def.id);
-    const phase = TurnManager.getPhase();
+    const affordable = !owned && (SkillTree.canUnlockWithPoints(def.id) || SkillTree.canUnlockWithGold(s, def.id));
     const el = document.createElement('div');
-    const affordable = !owned && (SkillTree.canUnlockWithPoints(def.id) || (s && SkillTree.canUnlockWithGold(s, def.id)));
-    el.className = 'skilltree-node ' + (owned ? 'owned' : (affordable ? 'affordable' : 'locked'));
+    el.className = 'st-tile ' + (owned ? 'owned' : (affordable ? 'affordable' : 'locked'));
+    if (selectedSkillNodeId === def.id) el.classList.add('selected');
+    el.title = def.name;
+
+    const emoji = document.createElement('div');
+    emoji.className = 'st-tile-emoji';
+    emoji.textContent = def.emoji;
+    el.appendChild(emoji);
+
+    let ready = false;
+    if (owned && def.id !== 'core') {
+      if (def.activation === 'feed') {
+        const spellDef = Spells.getDef(def.spellId);
+        const fed = Spells.fedCount(s, def.spellId);
+        const progress = document.createElement('div');
+        progress.className = 'st-tile-progress';
+        progress.textContent = `${fed}/${spellDef.totalLetters}`;
+        el.appendChild(progress);
+        ready = Spells.isCastable(s, def.spellId) && !s.spellUsedThisTurn[def.spellId];
+      } else if (def.activation === 'hpThreshold' || def.activation === 'wordLength') {
+        ready = !!s.nodeArmed[def.id] && !s.nodeUsedThisTurn[def.id];
+      }
+    }
+    if (ready) el.classList.add('ready');
+
+    if (ready || (!owned && affordable) || (!owned && !affordable)) {
+      const badge = document.createElement('div');
+      badge.className = 'st-badge';
+      badge.textContent = ready ? '✓' : (!owned && affordable ? '+' : '🔒');
+      el.appendChild(badge);
+    }
+
+    el.addEventListener('click', () => {
+      selectedSkillNodeId = (selectedSkillNodeId === def.id) ? null : def.id;
+      renderAll();
+    });
+    return el;
+  }
+
+  // The "rest of the info" popup for whichever tile was last clicked: full
+  // description plus whatever control that node actually needs (letter
+  // slots + Cast for feed nodes, Cast for threshold/word-length nodes,
+  // Megnyitás for anything not yet owned).
+  function renderSkillDetail(s) {
+    const panel = $('#skilltree-detail');
+    panel.innerHTML = '';
+    const def = selectedSkillNodeId && SkillTree.getDef(selectedSkillNodeId);
+    if (!def) { panel.classList.add('hidden'); selectedSkillNodeId = null; return; }
+    panel.classList.remove('hidden');
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'btn st-close';
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', () => { selectedSkillNodeId = null; renderAll(); });
+    panel.appendChild(closeBtn);
 
     const header = document.createElement('div');
     header.className = 'st-header';
@@ -495,29 +558,31 @@ const UI = (() => {
     name.textContent = def.name;
     header.appendChild(emoji);
     header.appendChild(name);
-    el.appendChild(header);
+    panel.appendChild(header);
 
     const desc = document.createElement('div');
     desc.className = 'st-desc';
     desc.textContent = def.desc;
-    el.appendChild(desc);
+    panel.appendChild(desc);
+
+    const owned = SkillTree.isOwned(def.id);
+    const phase = TurnManager.getPhase();
 
     if (!owned) {
-      appendUnlockControls(el, def);
-      return el;
+      appendUnlockControls(panel, def);
+      return;
     }
-    if (def.id === 'core') return el; // hub node, no activation of its own
+    if (def.id === 'core') return; // hub node, no activation of its own
 
     if (def.activation === 'feed') {
-      appendFeedControls(el, def, s, phase);
+      appendFeedControls(panel, def, s, phase);
     } else if (def.activation === 'hpThreshold' || def.activation === 'wordLength') {
-      appendTriggerCastControls(el, def, s, phase);
+      appendTriggerCastControls(panel, def, s, phase);
     } else if (def.activation === 'trapTrigger' || def.activation === 'junkTrigger') {
-      el.appendChild(statusLine('⚙️ Automatikus - magától elsül, ha a feltétel teljesül, nincs teendőd.'));
+      panel.appendChild(statusLine('⚙️ Automatikus - magától elsül, ha a feltétel teljesül, nincs teendőd.'));
     } else if (def.activation === 'passive') {
-      el.appendChild(statusLine('✅ Aktív, állandó hatás.'));
+      panel.appendChild(statusLine('✅ Aktív, állandó hatás.'));
     }
-    return el;
   }
 
   function statusLine(text, cls) {

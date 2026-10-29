@@ -129,66 +129,89 @@ body {
 
 .hud-skilltree { flex-direction: row; align-items: center; color: var(--accent-gold); font-weight: bold; font-size: 15px; }
 
-/* --- Skill tree: always-visible panel beside the board (not a modal) --- */
+/* --- Skill tree: compact icon grid beside the board (not a modal) --- */
 #spell-panel-title { color: var(--accent-gold); margin: 0 0 4px; font-size: 15px; }
+#spell-panel { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; }
 .skilltree-branch-title {
-  font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px;
-  margin-top: 10px; border-top: 1px solid var(--stone-light); padding-top: 8px;
+  flex-basis: 100%;
+  font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px;
+  margin-top: 6px;
 }
-.skilltree-branch-title:first-of-type { margin-top: 0; border-top: none; padding-top: 0; }
+.skilltree-branch-title:first-of-type { margin-top: 0; }
 
-.skilltree-node {
+.st-tile {
+  position: relative;
+  width: 56px; height: 56px;
   background: linear-gradient(145deg, #3a2f49, #2a2136);
   border: 2px solid var(--stone-light);
   border-radius: 10px;
-  padding: 8px 10px;
-  text-align: left;
-  cursor: default;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer;
+  padding: 2px;
 }
-.skilltree-node .st-header { display: flex; align-items: center; gap: 6px; }
-.skilltree-node .st-emoji { font-size: 18px; }
-.skilltree-node .st-name { font-size: 13px; font-weight: bold; }
-.skilltree-node .st-desc { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
-.skilltree-node .st-status { font-size: 11px; margin-top: 4px; }
-.skilltree-node .st-cost { font-size: 11px; color: var(--accent-gold); margin-top: 4px; }
-.skilltree-node .st-gate { font-size: 11px; color: #ff8a7a; margin-top: 2px; }
-.skilltree-node.owned { border-color: var(--accent-green); }
-.skilltree-node.affordable { border-color: var(--accent-gold); }
-.skilltree-node.locked { opacity: 0.6; }
-.skilltree-node .st-unlock-btn { margin-top: 6px; width: 100%; font-size: 11px; padding: 4px; }
-.skilltree-node .btn-cast { margin-left: 0; margin-top: 6px; }
-.skilltree-node .spell-row-slots { margin-top: 6px; }
-.skilltree-node.castable { border-color: var(--accent-green); box-shadow: 0 0 0 2px var(--accent-green); }
-.skilltree-node.node-row-armed { border-color: var(--accent-gold); box-shadow: 0 0 0 2px var(--accent-gold); }
-.skilltree-node.used-this-turn { opacity: 0.6; }
-.skilltree-node.active-target { border-color: var(--accent-gold); box-shadow: 0 0 0 2px var(--accent-gold); }
+.st-tile .st-tile-emoji { font-size: 22px; line-height: 1; }
+.st-tile .st-tile-slots { display: flex; gap: 1px; margin-top: 2px; }
+.st-tile .st-pip {
+  width: 8px; height: 8px; border-radius: 2px; background: #1c1624; border: 1px solid var(--stone-light);
+}
+.st-tile .st-pip.filled { background: var(--accent-gold); border-color: var(--accent-gold); }
+.st-tile .st-badge {
+  position: absolute; top: -6px; right: -6px;
+  width: 18px; height: 18px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: bold;
+  background: var(--bg-stone); border: 1px solid var(--stone-light);
+}
+.st-tile.owned { border-color: var(--accent-green); }
+.st-tile.affordable { border-color: var(--accent-gold); }
+.st-tile.locked { opacity: 0.55; }
+.st-tile.ready .st-badge { background: var(--accent-green); border-color: var(--accent-green); color: #0c2b10; }
+.st-tile.unlockable .st-badge { background: var(--accent-gold); border-color: var(--accent-gold); color: #3a2512; }
+.st-tile.ready { box-shadow: 0 0 0 2px var(--accent-green); }
+.st-tile.selected { box-shadow: 0 0 0 2px #fff; }
 
-/* --- In-run skill-tree ability panel (replaces the old spell panel) --- */
-.node-row-auto { opacity: 0.8; font-style: italic; }
-.node-row-armed { border-color: var(--accent-gold); box-shadow: 0 0 0 2px var(--accent-gold); }
-.st-passive-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-size: 12px; color: var(--text-dim); }
+#skilltree-detail {
+  width: 100%;
+  background: var(--bg-stone);
+  border: 1px solid var(--stone-light);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 4px;
+}
+#skilltree-detail .st-header { display: flex; align-items: center; gap: 6px; }
+#skilltree-detail .st-emoji { font-size: 20px; }
+#skilltree-detail .st-name { font-size: 14px; font-weight: bold; }
+#skilltree-detail .st-desc { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+#skilltree-detail .st-status { font-size: 12px; margin-top: 6px; }
+#skilltree-detail .st-cost { font-size: 12px; color: var(--accent-gold); margin-top: 6px; }
+#skilltree-detail .st-gate { font-size: 12px; color: #ff8a7a; margin-top: 4px; }
+#skilltree-detail .spell-row-slots { margin-top: 8px; }
+#skilltree-detail .btn-cast { margin-left: 0; margin-top: 8px; }
+#skilltree-detail .st-unlock-btn { margin-top: 8px; }
+#skilltree-detail .st-close { float: right; }
 
 #trader-skilltree-gold { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
 #trader-skilltree-gold .btn { text-align: left; font-size: 13px; }
 
+/* --- Main layout --- */
+#game-main { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+#log-panel { flex: 0 1 220px; min-width: 180px; order: -1; }
+#log-panel h3 { color: var(--accent-gold); margin: 0 0 6px; font-size: 14px; }
 #log {
-  min-height: 46px;
-  max-height: 90px;
+  height: 480px;
+  max-height: 60vh;
   overflow-y: auto;
   background: #140f1a;
   border-radius: 8px;
   padding: 6px 12px;
   font-size: 13px;
   color: var(--text-dim);
-  margin-bottom: 10px;
 }
 #log p { margin: 2px 0; }
 #log p.important { color: var(--accent-gold); }
 #log p.danger { color: #ff8a7a; }
 #log p.good { color: #8ee08a; }
 
-/* --- Main layout --- */
-#game-main { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
 #board-wrap { flex: 1 1 520px; }
 
 #board {
@@ -479,4 +502,6 @@ body {
 @media (max-width: 760px) {
   #game-main { flex-direction: column; }
   #board-wrap { width: 100%; }
+  #log-panel { order: 2; width: 100%; }
+  #log { height: auto; max-height: 160px; }
 }
