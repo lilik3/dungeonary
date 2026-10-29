@@ -176,6 +176,7 @@ const UI = (() => {
     $('#gold-text').textContent = s.gold;
     $('#room-text').textContent = Run.isBossRoom() ? 'Főellenfél' : s.roomNumber;
     $('#room-total').textContent = Run.TOTAL_ROOMS;
+    $('#skilltree-points-hud').textContent = MetaProgress.getSkillPoints();
   }
 
   function renderBoard() {
@@ -387,7 +388,7 @@ const UI = (() => {
   function renderSpellPanel() {
     const panel = $('#spell-panel');
     panel.innerHTML = '';
-    if (!Spells.ORIGINAL_SYSTEM_ENABLED) return; // parked - see spells.js
+    if (!Spells.ORIGINAL_SYSTEM_ENABLED) { renderNodeActivationPanel(panel); return; }
     const s = Run.getState();
     if (!s) return;
     const phase = TurnManager.getPhase();
@@ -444,6 +445,120 @@ const UI = (() => {
       row.appendChild(castBtn);
 
       panel.appendChild(row);
+    }
+  }
+
+  // New skill-tree system's in-run abilities panel (see skillTree.js). Feed
+  // nodes reuse the original system's own slot/Cast plumbing unchanged
+  // (handleCastClick, trySpellSlotDrop) keyed by the node's underlying
+  // spellId - only ownership (SkillTree.isOwned) and presentation are new.
+  function renderNodeActivationPanel(panel) {
+    const s = Run.getState();
+    if (!s) return;
+    const phase = TurnManager.getPhase();
+    const owned = SkillTree.getAllDefs().filter(d => d.id !== 'core' && SkillTree.isOwned(d.id));
+    const active = owned.filter(d => d.activation !== 'passive');
+    const passive = owned.filter(d => d.activation === 'passive');
+
+    for (const def of active) {
+      const row = document.createElement('div');
+      row.className = 'spell-row';
+      row.title = def.desc;
+
+      const emoji = document.createElement('span');
+      emoji.className = 'spell-row-emoji';
+      emoji.textContent = def.emoji;
+      row.appendChild(emoji);
+
+      if (def.activation === 'feed') {
+        const used = s.spellUsedThisTurn[def.spellId];
+        const castable = Spells.isCastable(s, def.spellId);
+        if (castable && !used) row.classList.add('castable');
+        if (used) row.classList.add('used-this-turn');
+        if (spellTargetState && spellTargetState.spellId === def.spellId) row.classList.add('active-target');
+
+        const slotsWrap = document.createElement('div');
+        slotsWrap.className = 'spell-row-slots';
+        Spells.slotStates(s, def.spellId).forEach((slot, idx) => {
+          const slotEl = document.createElement('div');
+          slotEl.className = 'spell-slot' + (slot.filled ? ' filled' : '');
+          slotEl.textContent = slot.letter;
+          slotEl.dataset.spellId = def.spellId;
+          slotEl.dataset.slotIndex = idx;
+          slotsWrap.appendChild(slotEl);
+        });
+        row.appendChild(slotsWrap);
+
+        const castBtn = document.createElement('button');
+        castBtn.className = 'btn btn-cast';
+        castBtn.textContent = 'Cast';
+        castBtn.disabled = phase !== 'playing' || !castable || used;
+        castBtn.addEventListener('click', () => handleCastClick(def.spellId));
+        row.appendChild(castBtn);
+      } else if (def.activation === 'hpThreshold' || def.activation === 'wordLength') {
+        const armed = !!s.nodeArmed[def.id];
+        const used = !!s.nodeUsedThisTurn[def.id];
+        if (armed && !used) row.classList.add('node-row-armed');
+        if (used) row.classList.add('used-this-turn');
+
+        const name = document.createElement('span');
+        name.className = 'spell-row-min';
+        name.textContent = `${def.name}${armed ? ' (aktiválható!)' : ''}`;
+        row.appendChild(name);
+
+        const castBtn = document.createElement('button');
+        castBtn.className = 'btn btn-cast';
+        castBtn.textContent = 'Cast';
+        castBtn.disabled = phase !== 'playing' || !SkillTree.isCastable(s, def.id);
+        castBtn.addEventListener('click', () => handleNodeCastClick(def.id));
+        row.appendChild(castBtn);
+      } else {
+        // trapTrigger / junkTrigger: fire automatically, no manual cast.
+        row.classList.add('node-row-auto');
+        const name = document.createElement('span');
+        name.className = 'spell-row-min';
+        name.textContent = `${def.name} (automatikus)`;
+        row.appendChild(name);
+      }
+
+      panel.appendChild(row);
+    }
+
+    if (passive.length > 0) {
+      const list = document.createElement('div');
+      list.className = 'st-passive-list';
+      for (const def of passive) {
+        const line = document.createElement('div');
+        line.textContent = `${def.emoji} ${def.name}`;
+        line.title = def.desc;
+        list.appendChild(line);
+      }
+      panel.appendChild(list);
+    }
+  }
+
+  function handleNodeCastClick(nodeId) {
+    const phase = TurnManager.getPhase();
+    if (phase !== 'playing') return;
+    const s = Run.getState();
+    if (!SkillTree.isCastable(s, nodeId)) { log('Még nincs aktiválva, vagy már használtad ebben a körben.', 'danger'); return; }
+    const res = TurnManager.castNode(nodeId, {});
+    if (!res.ok) { log(`Nem sikerült: ${res.reason}`, 'danger'); return; }
+    describeNodeCastResult(nodeId, res);
+    processTurnOutcome(res.turnOutcome);
+  }
+
+  function describeNodeCastResult(nodeId, res) {
+    const def = SkillTree.getDef(nodeId);
+    const e = res.effect;
+    if (def.activation === 'hpThreshold') {
+      log(`${def.emoji} ${def.name}: +${e.healed} HP!`, 'good');
+    } else if (def.activation === 'wordLength') {
+      log(`${def.emoji} ${def.name}: 1 sebzés minden élő ellenfélnek!`, 'good');
+      for (const m of e.hit) {
+        const died = !m.alive;
+        log(`${m.emoji} ${m.name} (${m.letter}) ${died ? 'elpusztult!' : 'megsebződött.'}`, died ? 'good' : null);
+      }
     }
   }
 
@@ -931,6 +1046,14 @@ const UI = (() => {
       renderTrader();
     });
 
+    $('#btn-skill-tree').addEventListener('click', () => {
+      renderSkillTreeModal();
+      showModal('#screen-skilltree');
+    });
+    $('#btn-close-skilltree').addEventListener('click', () => {
+      hideModal('#screen-skilltree');
+    });
+
     $('#btn-continue').addEventListener('click', () => {
       const more = TurnManager.continueFromTrader();
       hideModal('#screen-trader');
@@ -962,6 +1085,7 @@ const UI = (() => {
     if (res.trapDamage > 0) {
       log(`Csapdába léptél! -${res.trapDamage} HP.`, 'danger');
     }
+    for (const line of res.skillTreeEvents || []) log(line, 'good');
     log('Az új betűid a táblán maradnak.');
   }
 
@@ -1036,6 +1160,150 @@ const UI = (() => {
       btn.textContent = `Kapacitás +1 (${cost} arany)`;
       btn.disabled = s.gold < cost;
     }
+    renderTraderSkillTreeGold();
+  }
+
+  // Skill-tree nodes whose ONLY unlock path is gold (see skillTree.js) are
+  // sold here, at the Trader, instead of through the skill-point tree.
+  function renderTraderSkillTreeGold() {
+    const container = $('#trader-skilltree-gold');
+    container.innerHTML = '';
+    const s = Run.getState();
+    const goldDefs = SkillTree.getAllDefs().filter(d => d.goldCost != null && !SkillTree.isOwned(d.id));
+    for (const def of goldDefs) {
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.title = def.desc;
+      btn.textContent = `${def.emoji} ${def.name} (${def.goldCost} arany)`;
+      btn.disabled = !SkillTree.canUnlockWithGold(s, def.id);
+      btn.addEventListener('click', () => {
+        const res = TurnManager.unlockNodeWithGold(def.id);
+        if (res.ok) log(`${def.emoji} ${def.name} megvásárolva!`, 'important');
+        renderTrader();
+        renderHud();
+      });
+      container.appendChild(btn);
+    }
+  }
+
+  // ---------- SKILL TREE SCREEN ----------
+
+  const SKILLTREE_BRANCHES = [
+    { key: 'mozgas', title: 'Mozgás' },
+    { key: 'tuz', title: 'Tűz' },
+    { key: 'vedelem', title: 'Védelem' },
+    { key: 'betu', title: 'Betű' }
+  ];
+
+  function renderSkillTreeModal() {
+    $('#skilltree-points-text').textContent = `Tudáspont: ${MetaProgress.getSkillPoints()}`;
+    const grid = $('#skilltree-grid');
+    grid.innerHTML = '';
+
+    const coreCol = document.createElement('div');
+    coreCol.className = 'skilltree-branch';
+    coreCol.appendChild(skillTreeBranchTitle('Mag'));
+    coreCol.appendChild(buildSkillNodeEl(SkillTree.getDef('core')));
+    grid.appendChild(coreCol);
+
+    for (const b of SKILLTREE_BRANCHES) {
+      const col = document.createElement('div');
+      col.className = 'skilltree-branch';
+      col.appendChild(skillTreeBranchTitle(b.title));
+      SkillTree.getAllDefs().filter(d => d.branch === b.key).forEach((def, idx) => {
+        if (idx > 0) {
+          const connector = document.createElement('div');
+          connector.className = 'skilltree-connector';
+          col.appendChild(connector);
+        }
+        col.appendChild(buildSkillNodeEl(def));
+      });
+      grid.appendChild(col);
+    }
+
+    const goldDefs = SkillTree.getAllDefs().filter(d => d.branch === null && d.id !== 'core');
+    if (goldDefs.length > 0) {
+      const col = document.createElement('div');
+      col.className = 'skilltree-branch';
+      col.appendChild(skillTreeBranchTitle('Csak arannyal'));
+      for (const def of goldDefs) col.appendChild(buildSkillNodeEl(def));
+      grid.appendChild(col);
+    }
+  }
+
+  function skillTreeBranchTitle(text) {
+    const title = document.createElement('div');
+    title.className = 'skilltree-branch-title';
+    title.textContent = text;
+    return title;
+  }
+
+  function skillTreeGateText(gate) {
+    if (gate.type === 'trapStepped') return 'Feltétel: lépj valaha csapdába.';
+    if (gate.type === 'junkLetters') return 'Feltétel: gyűljön össze valaha 5 egyforma betű a pályán.';
+    if (gate.type === 'lowHp') return 'Feltétel: élj túl valaha egy 25% alatti HP-s pillanatot.';
+    if (gate.type === 'xpLevel') return `Feltétel: érd el valaha a ${gate.level}. szintet.`;
+    return '';
+  }
+
+  function buildSkillNodeEl(def) {
+    const el = document.createElement('div');
+    el.className = 'skilltree-node';
+    const owned = SkillTree.isOwned(def.id);
+    const reqsMet = SkillTree.requirementsMet(def);
+    const gateOk = SkillTree.gateMet(def);
+    const canPoints = SkillTree.canUnlockWithPoints(def.id);
+    el.classList.add(owned ? 'owned' : (canPoints ? 'affordable' : 'locked'));
+
+    const emoji = document.createElement('div');
+    emoji.className = 'st-emoji';
+    emoji.textContent = def.emoji;
+    el.appendChild(emoji);
+
+    const name = document.createElement('div');
+    name.className = 'st-name';
+    name.textContent = def.name;
+    el.appendChild(name);
+
+    const desc = document.createElement('div');
+    desc.className = 'st-desc';
+    desc.textContent = def.desc;
+    el.appendChild(desc);
+
+    if (!owned) {
+      if (def.cost != null) {
+        const cost = document.createElement('div');
+        cost.className = 'st-cost';
+        cost.textContent = `${def.cost} tudáspont`;
+        el.appendChild(cost);
+      }
+      if (!reqsMet) {
+        const reqText = document.createElement('div');
+        reqText.className = 'st-gate';
+        reqText.textContent = 'Előbb a szülő node kell.';
+        el.appendChild(reqText);
+      } else if (def.gate && !gateOk) {
+        const gateText = document.createElement('div');
+        gateText.className = 'st-gate';
+        gateText.textContent = skillTreeGateText(def.gate);
+        el.appendChild(gateText);
+      }
+      if (def.cost != null) {
+        const btn = document.createElement('button');
+        btn.className = 'btn st-unlock-btn';
+        btn.textContent = 'Megnyitás';
+        btn.disabled = !canPoints;
+        btn.addEventListener('click', () => {
+          const res = TurnManager.unlockNodeWithPoints(def.id);
+          if (res.ok) log(`${def.emoji} ${def.name} megnyitva!`, 'important');
+          renderSkillTreeModal();
+          renderAll();
+        });
+        el.appendChild(btn);
+      }
+    }
+
+    return el;
   }
 
   function showGameOver() {
@@ -1061,6 +1329,7 @@ const UI = (() => {
     hideModal('#screen-victory');
     hideModal('#screen-trader');
     hideModal('#screen-levelup');
+    hideModal('#screen-skilltree');
     hideLetterPicker();
     pendingDrops = [];
     dragData = null;
@@ -1081,6 +1350,7 @@ const UI = (() => {
     hideModal('#screen-victory');
     hideModal('#screen-trader');
     hideModal('#screen-levelup');
+    hideModal('#screen-skilltree');
     $('#screen-start').classList.add('hidden');
     $('#screen-game').classList.remove('hidden');
     hideLetterPicker();

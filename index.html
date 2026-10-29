@@ -34,6 +34,9 @@
       </div>
       <div class="hud-block hud-gold">💰 <span id="gold-text">0</span></div>
       <div class="hud-block hud-room">Szoba <span><span id="room-text">1</span>/<span id="room-total">6</span></span></div>
+      <div class="hud-block hud-skilltree">
+        <button id="btn-skill-tree" class="btn btn-primary">🌳 Skill Tree (<span id="skilltree-points-hud">0</span>)</button>
+      </div>
       <label class="hud-block hud-godmode" title="Ideiglenes teszt-kapcsoló: ameddig be van kapcsolva, nem fogyhat el az életerőd.">
         <input type="checkbox" id="chk-god-mode"> TESZT: Végtelen HP
       </label>
@@ -98,7 +101,18 @@
       <p>Aranyad: <span id="trader-gold">0</span> 💰</p>
       <p>Jelenlegi kapacitás: <span id="trader-capacity">7</span> betűtoken</p>
       <button id="btn-buy-capacity" class="btn btn-primary">Kapacitás +1</button>
+      <div id="trader-skilltree-gold"></div>
       <button id="btn-continue" class="btn btn-big">Tovább a következő szobába</button>
+    </div>
+  </section>
+
+  <!-- SKILL TREE MODAL -->
+  <section id="screen-skilltree" class="screen modal hidden">
+    <div class="modal-card skilltree-card">
+      <h2>Skill Tree</h2>
+      <p id="skilltree-points-text">Tudáspont: 0</p>
+      <div id="skilltree-grid"></div>
+      <button id="btn-close-skilltree" class="btn btn-primary btn-big">Bezár</button>
     </div>
   </section>
 
@@ -125,11 +139,13 @@
 
 <script src="data/words.js"></script>
 <script src="js/dictionary.js"></script>
+<script src="js/metaProgress.js"></script>
 <script src="js/letterBag.js"></script>
 <script src="js/inventory.js"></script>
 <script src="js/monsters.js"></script>
 <script src="js/board.js"></script>
 <script src="js/spells.js"></script>
+<script src="js/skillTree.js"></script>
 <script src="js/combat.js"></script>
 <script src="js/run.js"></script>
 <script src="js/turnManager.js"></script>

@@ -38,6 +38,7 @@ const Run = (() => {
       roomsCleared: 0
     };
     Inventory.reset();
+    SkillTree.syncRunState(state);
     refillRack();
     Board.generateRoom(1);
     return state;
@@ -52,12 +53,17 @@ const Run = (() => {
   }
 
   // Returns array of pending level-up events (player must choose a perk for each).
+  // Every level-up also banks +1 permanent skill point for the new tree, and
+  // records the level reached toward any xpLevel-gated node (lifetime high-
+  // water mark - meta-progression, so this isn't undone by the run ending).
   function addXp(amount) {
     state.xp += amount;
     const levelUps = [];
     while (state.xp >= xpThreshold(state.level + 1)) {
       state.level++;
       levelUps.push(state.level);
+      MetaProgress.addSkillPoints(1);
+      MetaProgress.recordLevelReached(state.level);
     }
     return levelUps;
   }
@@ -104,6 +110,7 @@ const Run = (() => {
     if (state.roomNumber >= TOTAL_ROOMS) return false; // run complete / victory
     state.roomNumber++;
     Board.generateRoom(state.roomNumber);
+    SkillTree.applyRoomStartBonuses(state);
     // Per feedback: a new room starts with a completely fresh rack rather
     // than carrying over whatever letters were left from the last one.
     Inventory.discard(Inventory.getTokens().map(t => t.id));

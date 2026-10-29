@@ -51,6 +51,7 @@ const TurnManager = (() => {
     History.capture();
     const state = Run.getState();
     if (!godMode) state.hp = Math.max(0, state.hp - TRASH_HP_COST);
+    SkillTree.onHpChanged(state);
     Inventory.discard(tokens.map(t => t.id));
     if (state.hp <= 0) {
       phase = 'game-over';
@@ -103,9 +104,17 @@ const TurnManager = (() => {
       state.hp = Math.max(0, state.hp - res.trapDamage);
     }
 
+    // Skill-tree trigger hooks: a trap hit, the word(s) just formed, and the
+    // resulting board state can each arm or auto-fire an owned node.
+    const skillTreeEvents = [];
+    if (res.trapCells.length > 0) skillTreeEvents.push(...SkillTree.onTrapHit(state));
+    SkillTree.onWordsPlaced(state, res.words);
+    skillTreeEvents.push(...SkillTree.onBoardChanged(state));
+    SkillTree.onHpChanged(state);
+
     const bonusXp = res.words.reduce((sum, w) => sum + wordLengthXp(w), 0);
     const turnOutcome = checkImmediateOutcome({ rewards: res.rewards, killed: res.killed, bonusXp });
-    return { ...res, turnOutcome };
+    return { ...res, skillTreeEvents, turnOutcome };
   }
 
   function feedSpellLetter(spellId, tokenId) {
@@ -127,6 +136,39 @@ const TurnManager = (() => {
     }
     const turnOutcome = checkImmediateOutcome(rewardInfo);
     return { ...res, turnOutcome };
+  }
+
+  // Manual cast for the new (non-feed) skill-tree node types: hpThreshold
+  // and wordLength nodes arm themselves via the on* hooks above, then wait
+  // for the player to click Cast, same as a fed spell would.
+  function castNode(nodeId, args) {
+    if (phase !== 'playing') return { ok: false, reason: 'wrong-phase' };
+    History.capture();
+    const state = Run.getState();
+    const res = SkillTree.cast(nodeId, state, args || {});
+    if (!res.ok) return res;
+
+    let rewardInfo = null;
+    if (Array.isArray(res.effect.killed)) {
+      rewardInfo = { rewards: res.effect.rewards, killed: res.effect.killed };
+    }
+    const turnOutcome = checkImmediateOutcome(rewardInfo);
+    return { ...res, turnOutcome };
+  }
+
+  // No phase gate (unlike the combat actions above): skill points are a
+  // meta-progression spend, not a move within a turn, and the gold path is
+  // meant to be used from the Trader screen (room-clear phase).
+  function unlockNodeWithPoints(nodeId) {
+    const state = Run.getState();
+    if (!state) return { ok: false, reason: 'no-run' };
+    return SkillTree.unlockWithPoints(state, nodeId);
+  }
+
+  function unlockNodeWithGold(nodeId) {
+    const state = Run.getState();
+    if (!state) return { ok: false, reason: 'no-run' };
+    return SkillTree.unlockWithGold(state, nodeId);
   }
 
   // The free second monster move a fully-spelled BLINK grants right after
@@ -153,6 +195,7 @@ const TurnManager = (() => {
     const atk = Combat.resolveEnemyAttack(state.wardShield);
     state.wardShield = 0;
     if (!godMode) state.hp -= atk.finalDamage;
+    SkillTree.onHpChanged(state);
 
     if (state.hp <= 0) {
       state.hp = 0;
@@ -161,6 +204,7 @@ const TurnManager = (() => {
     }
 
     Spells.resetTurnUsage(state);
+    SkillTree.resetTurnUsage(state);
     Board.resetTrapTurnFlags();
     Run.refillRack();
     return { ok: true, enemyAttack: atk, gameOver: false };
@@ -181,13 +225,16 @@ const TurnManager = (() => {
     History.capture();
     const more = Run.advanceRoom();
     phase = 'playing';
-    Spells.resetTurnUsage(Run.getState());
+    const state = Run.getState();
+    Spells.resetTurnUsage(state);
+    SkillTree.resetTurnUsage(state);
     return more;
   }
 
   return {
     getPhase, startRun, trashAll, submitWord, feedSpellLetter, castSpell,
-    castBlinkBonusMove, endTurn, confirmLevelUp, continueFromTrader,
+    castBlinkBonusMove, castNode, unlockNodeWithPoints, unlockNodeWithGold,
+    endTurn, confirmLevelUp, continueFromTrader,
     isGodMode, setGodMode, exportState, importState
   };
 })();

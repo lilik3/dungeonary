@@ -127,6 +127,45 @@ body {
 #spell-unlock-panel label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 #spell-unlock-panel input { cursor: pointer; }
 
+.hud-skilltree { flex-direction: row; }
+.hud-skilltree .btn { font-size: 13px; }
+
+/* --- Skill tree screen --- */
+.skilltree-card { max-width: 920px; width: 95%; text-align: left; }
+#skilltree-points-text { color: var(--accent-gold); font-weight: bold; font-size: 16px; }
+.skilltree-grid { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; margin: 14px 0; }
+.skilltree-branch { display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 150px; }
+.skilltree-branch-title { font-size: 13px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+.skilltree-connector { width: 2px; height: 14px; background: var(--stone-light); }
+
+.skilltree-node {
+  width: 150px;
+  background: linear-gradient(145deg, #3a2f49, #2a2136);
+  border: 2px solid var(--stone-light);
+  border-radius: 10px;
+  padding: 8px 10px;
+  text-align: center;
+  cursor: default;
+}
+.skilltree-node .st-emoji { font-size: 22px; }
+.skilltree-node .st-name { font-size: 13px; font-weight: bold; margin: 2px 0; }
+.skilltree-node .st-desc { font-size: 11px; color: var(--text-dim); }
+.skilltree-node .st-cost { font-size: 11px; color: var(--accent-gold); margin-top: 4px; }
+.skilltree-node .st-gate { font-size: 11px; color: #ff8a7a; margin-top: 2px; }
+.skilltree-node.owned { border-color: var(--accent-green); box-shadow: 0 0 0 2px var(--accent-green); }
+.skilltree-node.affordable { border-color: var(--accent-gold); cursor: pointer; }
+.skilltree-node.affordable:hover { box-shadow: 0 0 0 2px var(--accent-gold); }
+.skilltree-node.locked { opacity: 0.5; }
+.skilltree-node .st-unlock-btn { margin-top: 6px; width: 100%; font-size: 11px; padding: 4px; }
+
+/* --- In-run skill-tree ability panel (replaces the old spell panel) --- */
+.node-row-auto { opacity: 0.8; font-style: italic; }
+.node-row-armed { border-color: var(--accent-gold); box-shadow: 0 0 0 2px var(--accent-gold); }
+.st-passive-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-size: 12px; color: var(--text-dim); }
+
+#trader-skilltree-gold { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+#trader-skilltree-gold .btn { text-align: left; font-size: 13px; }
+
 #log {
   min-height: 46px;
   max-height: 90px;
