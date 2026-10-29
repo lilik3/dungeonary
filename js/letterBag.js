@@ -5,15 +5,21 @@ const LetterBag = (() => {
   // as rare as the rarest real letters, that can stand in for any letter.
   const JOKER_LETTER = '*';
 
-  // Actual English-text letter frequency (per feedback - the old Scrabble
-  // tile counts made Z/X/Q/J far too common relative to how rare they really
-  // are in English; this is the standard corpus-frequency table, scaled
-  // x10 and rounded). The Joker sits at the same rarity as the rarest real
-  // letters (Q/Z).
+  // Square-root-dampened English-text letter frequency (per feedback - raw
+  // corpus frequency (the previous table) made the rarest letters feel
+  // completely absent: K sat at ~0.8% and the Joker at ~0.1%, so most runs
+  // never drew one at all. Raw Scrabble tile counts (the table before that)
+  // went too far the other way and made Z/X/Q/J feel oppressively common.
+  // Taking the square root of each letter's real frequency keeps the same
+  // relative ORDER (E is still clearly the most common, Z/Q still the
+  // rarest) but compresses the RANGE between them - the common/rare ratio
+  // ends up close to Scrabble's own bag (~12:1) while the shape in between
+  // still tracks true English usage. The Joker sits a notch above K: rare
+  // enough to feel special, common enough to actually show up.
   const WEIGHTS = {
-    E: 127, T: 91, A: 82, O: 75, I: 70, N: 67, S: 63, H: 61, R: 60,
-    D: 43, L: 40, C: 28, U: 28, M: 24, W: 24, F: 22, G: 20, Y: 20,
-    P: 19, B: 15, V: 10, K: 8, J: 2, X: 2, Q: 1, Z: 1, [JOKER_LETTER]: 1
+    E: 36, T: 30, A: 29, O: 27, I: 26, N: 26, S: 25, H: 25, R: 24,
+    D: 21, L: 20, C: 17, U: 17, M: 16, W: 15, F: 15, G: 14, Y: 14,
+    P: 14, B: 12, V: 10, K: 9, J: 4, X: 4, Q: 3, Z: 3, [JOKER_LETTER]: 6
   };
 
   const LETTERS = Object.keys(WEIGHTS);
